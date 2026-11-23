@@ -14,12 +14,12 @@ class StopItSections {
 
     for (const [group, label] of Object.entries({ new: 'sectionNew', older: 'sectionOlder', seen: 'sectionWatched' })) {
       const heading = document.createElement('h2');
-      heading.lang = chrome.i18n.getMessage('languageCode');
+      heading.lang = StopItPlatform.message('languageCode');
       heading.dataset.stopitHeading = group;
       const button = document.createElement('button');
       button.type = 'button';
       button.id = 'stopit-section-' + group;
-      button.textContent = chrome.i18n.getMessage(label);
+      button.textContent = StopItPlatform.message(label);
       button.setAttribute('aria-expanded', 'false');
       if ('ariaControlsElements' in button) button.ariaControlsElements = [grid];
       button.addEventListener('click', () => {
@@ -125,13 +125,15 @@ class StopItSections {
     // Start at the full viewport so auto-sized ancestors can grow on resize,
     // then respect any smaller native scrollport (e.g. below a fixed header).
     const style = this.host.style;
-    style.setProperty('--stopit-section-height', size(innerHeight));
-    let bottom = innerHeight;
+    style.setProperty('--stopit-section-height', size(window.innerHeight));
+    let bottom = window.innerHeight;
+    const pivot = this.host.closest('ytm-app')?.querySelector('ytm-pivot-bar-renderer')?.getBoundingClientRect();
+    if (pivot?.height && pivot.top > top) bottom = Math.min(bottom, pivot.top);
     for (const el of this.outerScrollers) {
       if (el === this.host || el === document.body || el === document.documentElement) continue;
       bottom = Math.min(bottom, el.getBoundingClientRect().top + el.clientTop + el.clientHeight);
     }
-    if (bottom < innerHeight) style.setProperty('--stopit-section-height', size(bottom));
+    if (bottom < window.innerHeight) style.setProperty('--stopit-section-height', size(bottom));
   }
 
   destroy() {

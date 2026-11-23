@@ -67,7 +67,7 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
   if (!Number.isInteger(sender.tab?.id) || !sender.url) return;
   const strict = message.type === 'strict';
   if (!strict && (sender.frameId !== 0 || sender.url.split(/[?#]/, 1)[0] !== gateURL)) return;
-  const task = updates.then(() => strict ? strictRequest(message, sender) : handle(message, sender.tab.id));
+  const task = updates.then(() => strict ? strictRequest(message, sender, chrome.storage, async () => (await chrome.tabs.get(sender.tab.id)).active) : handle(message, sender.tab.id));
   updates = task.catch(() => {});
   task.then(
     (value) => respond({ ok: true, value }),

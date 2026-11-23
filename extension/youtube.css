@@ -27,6 +27,22 @@ html[data-stopit-leaving] :is(video, #movie_player, ytd-shorts) {
   display: none !important;
 }
 
+/* Hide the action and its wrapper so the masthead leaves no empty slot. */
+html:not([data-stopit-show-create]) :is(ytd-masthead, ytm-header, ytm-mobile-topbar-renderer, .mobile-topbar-header)
+  :is(
+    [data-stopit-create-control], #create-icon, [data-tooltip-target-id='yt-create-icon'],
+    a:is([href='/upload'], [href='https://www.youtube.com/upload']),
+    :is(button, a, [role='button'], ytd-topbar-menu-button-renderer, ytd-button-renderer, ytm-button-renderer):is(
+      [aria-label='Create' i], [aria-label='Crear' i], [title='Create' i], [title='Crear' i]
+    ),
+    :is(ytd-topbar-menu-button-renderer, ytd-button-renderer, ytm-button-renderer, button, [role='button']):has(
+      [data-stopit-create-control], #create-icon, [data-tooltip-target-id='yt-create-icon'],
+      a:is([href='/upload'], [href='https://www.youtube.com/upload'])
+    )
+  ) {
+  display: none !important;
+}
+
 /* The notifications menu can be mounted in a portal outside the masthead. */
 html:not([data-stopit-show-notifications]) :is(
   ytd-notification-topbar-button-renderer,

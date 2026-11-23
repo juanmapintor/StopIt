@@ -3,12 +3,13 @@
   const pageSelector = 'ytd-browse[page-subtype="subscriptions"]:not([hidden])';
   const grids =
     'ytd-rich-grid-renderer > #contents, ytd-grid-renderer > #items, ytd-section-list-renderer > #contents';
-  const cardTypes = 'ytd-rich-item-renderer, ytd-grid-video-renderer, ytd-video-renderer';
+  const cardTypes = 'ytd-rich-item-renderer, ytd-grid-video-renderer, ytd-video-renderer, ' +
+    'ytm-rich-item-renderer, ytm-video-with-context-renderer, ytm-compact-video-renderer, ytm-video-renderer, yt-lockup-view-model';
   const shelf =
-    'ytd-rich-section-renderer, ytd-rich-shelf-renderer, ytd-shelf-renderer, grid-shelf-view-model, ytd-reel-shelf-renderer';
-  const videoLink = 'a:is([href^="/watch?"], [href^="/live/"], [href^="https://www.youtube.com/watch?"])';
+    'ytd-rich-section-renderer, ytd-rich-shelf-renderer, ytd-shelf-renderer, grid-shelf-view-model, ytd-reel-shelf-renderer, ytm-shelf-renderer, ytm-rich-section-renderer, ytm-reel-shelf-renderer';
+  const videoLink = 'a:is([href^="/watch?"], [href^="/live/"], [href^="https://www.youtube.com/watch?"], [href^="https://m.youtube.com/watch?"])';
   const badgeLabels =
-    'yt-thumbnail-badge-view-model :is(.ytBadgeShapeText, .yt-badge-shape__text), ytd-thumbnail-overlay-time-status-renderer #text';
+    'yt-thumbnail-badge-view-model :is(.ytBadgeShapeText, .yt-badge-shape__text), ytd-thumbnail-overlay-time-status-renderer #text, ytm-thumbnail-overlay-time-status-renderer';
   let active = null;
   let timer;
 
@@ -37,18 +38,18 @@
   }
 
   function cardType(card) {
-    if (card.querySelector('a[href^="/shorts/"], [overlay-style="SHORTS"]')) return 'skip';
+    if (card.querySelector('a[href^="/shorts/"], [overlay-style="SHORTS"], [data-style="SHORTS"]')) return 'skip';
     const labels = Array.from(card.querySelectorAll(badgeLabels), (n) => n.textContent.trim()).filter(
       Boolean
     );
     if (
-      card.querySelector('[overlay-style="UPCOMING"]') ||
+      card.querySelector('[overlay-style="UPCOMING"], [data-style="UPCOMING"], ytm-ad-slot-renderer, ytm-playlist-renderer, ytm-radio-renderer, ytm-compact-playlist-renderer, ytm-compact-radio-renderer') ||
       labels.some((s) => /^(upcoming|premiere|próximamente|programado|estreno)$/i.test(s))
     )
       return 'skip';
     if (
       card.querySelector(
-        '[overlay-style="LIVE"], .badge-style-type-live-now, .yt-badge-shape--thumbnail-live, .ytBadgeShapeThumbnailLive'
+        '[overlay-style="LIVE"], [data-style="LIVE"], .badge-style-type-live-now, .yt-badge-shape--thumbnail-live, .ytBadgeShapeThumbnailLive'
       ) ||
       labels.some((s) => /^(live|live now|en vivo|en directo|directo)$/i.test(s))
     )
@@ -68,13 +69,13 @@
     image.loading = 'lazy';
     const badge = document.createElement('span');
     badge.className = 'badge';
-    badge.lang = chrome.i18n.getMessage('languageCode');
-    badge.textContent = chrome.i18n.getMessage('liveBadge');
+    badge.lang = StopItPlatform.message('languageCode');
+    badge.textContent = StopItPlatform.message('liveBadge');
     const title = document.createElement('strong');
     title.textContent =
-      card.querySelector('h3 a, #video-title, #video-title-link')?.textContent.trim() ||
+      card.querySelector('h3 a, #video-title, #video-title-link, .media-item-headline, .compact-media-item-headline, .ytLockupMetadataViewModelTitle, .yt-lockup-metadata-view-model__title')?.textContent.trim() ||
       card.querySelector(videoLink)?.getAttribute('aria-label') ||
-      chrome.i18n.getMessage('watchLive');
+      StopItPlatform.message('watchLive');
     const channel = document.createElement('span');
     channel.className = 'channel';
     channel.textContent = card.querySelector('a[href^="/@"], ytd-channel-name a')?.textContent.trim() || '';
@@ -89,7 +90,7 @@
   }
 
   async function applyFeed(state) {
-    const cards = [...state.grid.querySelectorAll(cardTypes)].filter((card) => !card.closest(shelf));
+    const cards = [...state.grid.querySelectorAll(cardTypes)].filter(card => !card.closest(shelf) && !card.parentElement.closest(cardTypes));
     // Some layouts put broadcasts in a separate Live shelf. Never use a
     // recommendation shelf as a source, even if one of its picks is live.
     const liveShelfCards = new Set();
@@ -110,8 +111,8 @@
     for (const card of cards) {
       const link = card.querySelector(videoLink);
       const id = link && StopItRoutes.videoId(new URL(link.href));
-      const title = card.querySelector('h3 a, #video-title, #video-title-link');
-      if (!StopItRoutes.validId(id) || !(title?.textContent.trim() || link.getAttribute('aria-label'))) {
+      const title = card.querySelector('h3 a, #video-title, #video-title-link, .media-item-headline, .compact-media-item-headline, .ytLockupMetadataViewModelTitle, .yt-lockup-metadata-view-model__title');
+      if (!StopItRoutes.validId(id) || !(title?.textContent.trim() || link.getAttribute('aria-label') || (!link.firstElementChild && link.textContent.trim()))) {
         // YouTube is still filling this slot, or has just recycled it.
         card.removeAttribute('data-stopit-group');
         setHidden(card, false);
@@ -195,7 +196,7 @@
         await StopItStrictMode.groupFeed({ state, mounted, inspected, current });
       } catch (error) {
         if (current() && StopItStrictMode.enabled) {
-          StopItStrictMode.unavailable(state.grid, chrome.i18n.getMessage('strictLoadError'));
+          StopItStrictMode.unavailable(state.grid, StopItPlatform.message('strictLoadError'));
           console.error(error);
         }
       } finally {
@@ -204,7 +205,7 @@
       }
       if (!current()) return;
     }
-    globalThis.StopItPanelFeed?.updated(state.grid);
+    StopItPlatform.panelFeed?.updated(state.grid);
   }
 
   function schedule() {
@@ -246,17 +247,25 @@
       schedule();
   });
   function observeGrid() {
-    const attributeFilter = ['href', 'overlay-style', 'aria-label', 'datetime', 'content', 'src'];
+    const attributeFilter = ['href', 'overlay-style', 'data-style', 'aria-label', 'datetime', 'content', 'src'];
     if (StopItStrictMode.enabled) attributeFilter.push('style', 'aria-valuenow');
     gridObserver.observe(active.grid, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter });
   }
-  const mountObserver = new MutationObserver(findGrid);
+  const mountObserver = new MutationObserver(() => {
+    if (!active?.grid.isConnected) enter();
+  });
   function findGrid() {
+    if (location.pathname.replace(/\/$/, '') !== feedRoute) return;
     const page = document.querySelector(pageSelector);
-    const grid = page?.querySelector('ytd-rich-grid-renderer > #contents') || page?.querySelector(grids);
-    if (!grid || location.pathname.replace(/\/$/, '') !== feedRoute) return;
+    const mobile = document.querySelector('ytm-browse [tab-identifier="FEsubscriptions"]:not([hidden])') ||
+      document.querySelector('ytm-browse:not([hidden]), main');
+    const grid = page?.querySelector('ytd-rich-grid-renderer > #contents') || page?.querySelector(grids) ||
+      mobile?.querySelector('.rich-grid-renderer-contents, ytm-section-list-renderer > lazy-list, ytm-rich-grid-renderer') ||
+      (mobile?.querySelector(cardTypes) && mobile);
+    if (!grid) return;
     if (active?.grid === grid) return;
     reset();
+    grid.setAttribute('data-stopit-feed', '');
     active = { grid, known: new Set(), order: [], dates: new Map(), lives: new Map() };
     observeGrid();
     schedule();
@@ -267,6 +276,7 @@
     clearTimeout(timer);
     timer = null;
     if (active) {
+      active.grid.removeAttribute('data-stopit-feed');
       StopItStrictMode.clear(active.grid);
       for (const live of active.lives.values()) live.tile.remove();
       for (const card of active.grid.querySelectorAll('[data-stopit-hidden]')) setHidden(card, false);
@@ -280,8 +290,9 @@
       return;
     }
     findGrid();
-    if (!active) mountObserver.observe(document, { childList: true, subtree: true });
+    mountObserver.observe(document, { childList: true, subtree: true });
   }
+  document.addEventListener('stopit-account-changed', () => { reset(); enter(); });
   document.addEventListener('yt-navigate-finish', enter);
   document.addEventListener('stopit-strict-update', () => {
     if (active) {
@@ -290,7 +301,8 @@
     }
   });
   document.addEventListener('yt-page-data-updated', enter);
-  navigation.addEventListener('currententrychange', enter);
+  window.navigation?.addEventListener('currententrychange', enter);
+  window.addEventListener('popstate', enter);
   window.addEventListener('pageshow', enter);
   enter();
 })();

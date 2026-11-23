@@ -3,35 +3,50 @@
     'ytd-multi-page-menu-renderer[menu-style="multi-page-menu-style-type-notifications"]',
     'ytd-popup-container ytd-notification-section-renderer'
   ].join(', ');
-  StopItPreferences.observe('showNotifications', (show) => {
+  function observeTopBar() {
     const root = document.documentElement;
-    if (!show && root.hasAttribute('data-stopit-show-notifications')) {
-      const open = [...document.querySelectorAll(notificationMenu)].some((menu) =>
-        menu.checkVisibility({ checkVisibilityCSS: true, checkOpacity: true })
-      );
-      if (open) {
-        // Dismiss the native dropdown before hiding its trigger.
-        document.querySelector('ytd-notification-topbar-button-renderer button')?.click();
+    StopItPreferences.observe('showCreateButton', show => {
+      root.toggleAttribute('data-stopit-show-create', show === true);
+    });
+    StopItPreferences.observe('showNotifications', show => {
+      if (!show && root.hasAttribute('data-stopit-show-notifications')) {
+        const open = [...document.querySelectorAll(notificationMenu)].some(menu =>
+          menu.checkVisibility({ checkVisibilityCSS: true, checkOpacity: true })
+        );
+        if (open) {
+          // Dismiss the native dropdown before hiding its trigger.
+          document.querySelector('ytd-notification-topbar-button-renderer button')?.click();
+        }
       }
-    }
-    root.toggleAttribute('data-stopit-show-notifications', show === true);
-  });
+      root.toggleAttribute('data-stopit-show-notifications', show === true);
+    });
+  }
+  if (document.documentElement) observeTopBar();
+  else document.addEventListener('DOMContentLoaded', observeTopBar, { once: true });
 
+  const masthead = ':is(ytd-masthead, ytm-header, ytm-mobile-topbar-renderer, .mobile-topbar-header)';
   const controls = [
-    'ytd-guide-entry-renderer', 'ytd-mini-guide-entry-renderer', 'ytd-search-filter-renderer',
-    'yt-chip-cloud-chip-renderer', '.ytChipBarViewModelChipWrapper', 'chip-view-model', 'yt-chip-view-model',
+    masthead + ' a', 'ytd-guide-entry-renderer', 'ytd-mini-guide-entry-renderer', 'ytd-search-filter-renderer',
+    'ytm-chip-cloud-chip-renderer', 'ytm-pivot-bar-item-renderer', '.single-column-browse-results-tabs a', 'yt-chip-cloud-chip-renderer', '.ytChipBarViewModelChipWrapper', 'chip-view-model', 'yt-chip-view-model',
     'chip-shape', 'yt-tab-shape', 'tp-yt-paper-tab', '[role="tab"]', 'button', '[role="button"]:not(a[href])'
   ].join(', ');
   const labels = '#title, .title, #text, .ytChipShapeText, .ytTabShapeTab, yt-formatted-string';
   const isShorts = (value) => /^(?:YouTube\s+)?Shorts$/i.test(value?.trim() || '');
+  const createLabel = /^(?:\+\s*)?(?:create|crear|create a video or post|crear un v[ií]deo o una publicaci[oó]n)$/i;
 
   function mark(control) {
     const button = control.querySelector('button, [role="tab"], a');
     const name = control.querySelector(labels)?.textContent || control.textContent;
-    control.toggleAttribute('data-stopit-shorts-control', [
+    const names = [
       name, control.getAttribute('tab-title'), control.getAttribute('title'),
       control.getAttribute('aria-label'), button?.getAttribute('aria-label'), button?.getAttribute('title')
-    ].some(isShorts));
+    ];
+    control.toggleAttribute('data-stopit-shorts-control', names.some(isShorts));
+    if (control.closest(masthead)) {
+      const isCreate = control.matches('a, button, [role="button"]') &&
+        names.some(value => createLabel.test(value?.trim() || ''));
+      control.toggleAttribute('data-stopit-create-control', isCreate);
+    }
   }
 
   // Recheck only inserted controls and owners of changed labels. YouTube
@@ -46,8 +61,9 @@
         if (node.matches(controls)) changed.add(node);
         if (node.firstElementChild) node.querySelectorAll(controls).forEach((el) => changed.add(el));
       }
-      if (target?.hasAttribute('data-stopit-shorts-control') && !target.matches(controls)) {
+      if (record.type === 'attributes' && !target.matches(controls)) {
         target.removeAttribute('data-stopit-shorts-control');
+        target.removeAttribute('data-stopit-create-control');
       }
     }
     changed.forEach(mark);

@@ -7,7 +7,7 @@
   const host = window.frameElement;
   if (!host?.closest('.stopit-watch-panel')) return;
   const currentId = () => StopItRoutes.videoId(new URL(parent.location.href));
-  const cards = 'ytd-rich-item-renderer, ytd-grid-video-renderer, ytd-video-renderer, .stopit-live';
+  const cards = 'ytd-rich-item-renderer, ytd-grid-video-renderer, ytd-video-renderer, ytm-rich-item-renderer, ytm-compact-video-renderer, ytm-video-with-context-renderer, yt-lockup-view-model, .stopit-live';
   let grid;
 
   function status(value) {
@@ -44,27 +44,33 @@
   }
 
   function emptyState() {
-    const page = document.querySelector('ytd-browse[page-subtype="subscriptions"]:not([hidden])');
+    const page = document.querySelector('ytd-browse[page-subtype="subscriptions"]:not([hidden]), ytm-browse:not([hidden]), main');
+    if (page?.matches('ytm-browse') && [...document.querySelectorAll('script:not([src])')].some(script =>
+      script.textContent.includes('ytcfg.set(') && /"LOGGED_IN"\s*:\s*false/.test(script.textContent))) {
+      status('signedout');
+      return true;
+    }
     const message = page?.querySelector(
-      'ytd-background-promo-renderer, yt-background-promo-view-model, ytd-message-renderer'
+      'ytd-background-promo-renderer, yt-background-promo-view-model, ytd-message-renderer, ytm-background-promo-renderer, ytm-message-renderer'
     );
     if (!message) return false;
     const login =
       page.querySelector('a[href*="accounts.google.com/"], a[href^="/signin"]') ||
-      document.querySelector('ytd-masthead a[href*="accounts.google.com/"]');
+      document.querySelector('ytd-masthead a[href*="accounts.google.com/"], ytm-header a[href*="accounts.google.com/"]');
     status(login ? 'signedout' : 'empty');
     return true;
   }
 
   const initial = new MutationObserver(emptyState);
+  emptyState();
   initial.observe(document, { childList: true, subtree: true });
-  globalThis.StopItPanelFeed = {
+  StopItPlatform.panelFeed = {
     updated(next) {
       initial.disconnect();
       exposeGrid(next);
       markCurrent();
       const hasVideos = [...grid.querySelectorAll(cards)].some((card) => card.getClientRects().length);
-      if (!hasVideos && !grid.hasAttribute('data-stopit-strict-grid') && !grid.querySelector('[data-stopit-heading], ytd-continuation-item-renderer')) {
+      if (!hasVideos && !grid.hasAttribute('data-stopit-strict-grid') && !grid.querySelector('[data-stopit-heading], ytd-continuation-item-renderer, ytm-continuation-item-renderer')) {
         if (!emptyState()) status('empty');
         return;
       }
@@ -88,7 +94,7 @@
     },
     true
   );
-  navigation.addEventListener('navigate', (event) => {
+  window.navigation?.addEventListener('navigate', (event) => {
     const url = new URL(event.destination.url);
     if (url.origin === location.origin && url.pathname === '/feed/subscriptions') return;
     if (event.cancelable) event.preventDefault();

@@ -1,6 +1,6 @@
 // Extract only metadata. YouTube's document contains scripts, embeds and styles
 // that should never be inserted into the extension's verification page.
-globalThis.StopItMetadata = (() => {
+const StopItMetadata = (() => {
   function parse(html, id) {
     let canonical;
     let published = false;
@@ -27,9 +27,9 @@ globalThis.StopItMetadata = (() => {
     return 'video';
   }
 
-  async function identify(id) {
+  async function identify(id, origin = 'https://www.youtube.com') {
     if (!StopItRoutes.validId(id)) throw new Error('Invalid video ID');
-    const url = 'https://www.youtube.com/watch?v=' + id;
+    const url = origin + '/watch?v=' + id;
     for (const credentials of ['omit', 'include']) {
       const response = await fetch(url, { credentials, signal: AbortSignal.timeout(12000) });
       if (!response.ok) {

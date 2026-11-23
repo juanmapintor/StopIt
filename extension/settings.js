@@ -1,26 +1,28 @@
-const errorMessage = document.getElementById('error');
+function bindStopItSettings(root) {
+  const errorMessage = root.querySelector('[role="status"]');
 
-for (const input of document.querySelectorAll('[data-preference]')) {
-  const key = input.dataset.preference;
-  let saved = false;
-  StopItPreferences.observe(key, (value) => {
-    saved = Boolean(value);
-    input.checked = saved;
-    input.disabled = false;
-  }).catch(() => {
-    errorMessage.textContent = chrome.i18n.getMessage('settingsLoadError');
-  });
-
-  input.addEventListener('change', async () => {
-    errorMessage.textContent = '';
-    input.disabled = true;
-    try {
-      await StopItPreferences.set(key, input.checked);
-    } catch {
+  for (const input of root.querySelectorAll('[data-preference]')) {
+    const key = input.dataset.preference;
+    let saved = false;
+    StopItPreferences.observe(key, (value) => {
+      saved = Boolean(value);
       input.checked = saved;
-      errorMessage.textContent = chrome.i18n.getMessage('settingsSaveError');
-    } finally {
       input.disabled = false;
-    }
-  });
+    }).catch(() => {
+      errorMessage.textContent = StopItPlatform.message('settingsLoadError');
+    });
+
+    input.addEventListener('change', async () => {
+      errorMessage.textContent = '';
+      input.disabled = true;
+      try {
+        await StopItPreferences.set(key, input.checked);
+      } catch {
+        input.checked = saved;
+        errorMessage.textContent = StopItPlatform.message('settingsSaveError');
+      } finally {
+        input.disabled = false;
+      }
+    });
+  }
 }

@@ -1,4 +1,4 @@
-globalThis.StopItStrictMode = (() => {
+const StopItStrictMode = (() => {
   const embedded = window !== window.top;
   // Only the same-origin subscriptions iframe loads this entry point.
   const host = embedded ? parent : window;
@@ -36,16 +36,15 @@ globalThis.StopItStrictMode = (() => {
   }
 
   async function request(action, extra = {}) {
-    const result = await chrome.runtime.sendMessage({ type: 'strict', action, account, since, ...extra });
-    if (!result?.ok) throw new Error('Could not save strict mode state.');
-    return result.value;
+    return StopItPlatform.strict({ action, account, since, ...extra });
   }
 
   function recordOpening() {
     if (!since || embedded || document.hidden) return;
     const id = StopItRoutes.videoId(new URL(location.href));
     if (!StopItRoutes.validId(id) || id === lastOpened) return;
-    const player = document.querySelector('#movie_player');
+    if (document.documentElement.hasAttribute('data-stopit-verifying')) return;
+    const player = document.querySelector('#movie_player, #player-container-id:has(video)');
     const video = player?.querySelector('video');
     if (!video || video.readyState < HTMLMediaElement.HAVE_METADATA || video.error) return;
     const playingId = player.closest('ytd-watch-flexy, ytd-watch-grid')?.getAttribute('video-id');
@@ -58,7 +57,7 @@ globalThis.StopItStrictMode = (() => {
   }
 
   function visitContext(entry) {
-    const entries = host.navigation.entries();
+    const entries = StopItPlatform.navigationFor(host).entries();
     const previous = entries[entry.index - 1];
     const url = previous?.url && new URL(previous.url);
     const fromFeed = url && (url.pathname === '/feed/subscriptions' || StopItRoutes.videoId(url));
@@ -70,7 +69,7 @@ globalThis.StopItStrictMode = (() => {
 
   function hasProgress(card) {
     const bar = card.querySelector(
-      'ytd-thumbnail-overlay-resume-playback-renderer #progress, ' +
+      'ytd-thumbnail-overlay-resume-playback-renderer #progress, ytm-thumbnail-overlay-resume-playback-renderer .thumbnail-overlay-resume-playback-progress, ' +
       '.ytwThumbnailOverlayResumePlaybackRendererThumbnailOverlayResumePlaybackProgress, ' +
       '.ytThumbnailOverlayProgressBarHostWatchedProgressBarSegment'
     );
@@ -97,7 +96,7 @@ globalThis.StopItStrictMode = (() => {
     if (grid.querySelector('[data-stopit-heading="problem"]')?.textContent === message) return;
     clear(grid);
     const notice = document.createElement('p');
-    notice.lang = chrome.i18n.getMessage('languageCode');
+    notice.lang = StopItPlatform.message('languageCode');
     notice.dataset.stopitHeading = 'problem';
     notice.setAttribute('role', 'status');
     notice.textContent = message;
@@ -108,15 +107,15 @@ globalThis.StopItStrictMode = (() => {
   async function groupFeed({ state, mounted, inspected, current }) {
     if (!since) return;
     if (!accountId()) {
-      if (mounted.size || state.lives.size) unavailable(state.grid, chrome.i18n.getMessage('strictAccountError'));
+      if (mounted.size || state.lives.size) unavailable(state.grid, StopItPlatform.message('strictAccountError'));
       else clear(state.grid);
       return;
     }
     const epoch = since;
     const owner = account;
-    const entry = host.navigation.currentEntry;
+    const entry = StopItPlatform.navigationFor(host).currentEntry;
     if (!entry) return;
-    const valid = () => epoch === since && owner === account && entry.key === host.navigation.currentEntry?.key && current();
+    const valid = () => epoch === since && owner === account && entry.key === StopItPlatform.navigationFor(host).currentEntry?.key && current();
     const items = new Map(mounted);
     for (const [id, live] of state.lives) {
       if (state.grid.contains(live.tile)) items.set(id, live.tile);
@@ -134,7 +133,7 @@ globalThis.StopItStrictMode = (() => {
     const prefix = 'strictSeen:' + account + ':';
     const missing = [...items.keys()].filter(id => !seen.has(id));
     if (missing.length) {
-      const stored = await chrome.storage.local.get(missing.map(id => prefix + id));
+      const stored = await StopItPlatform.local.get(missing.map(id => prefix + id));
       if (!valid()) return;
       // A storage event can deliver a newer value while this read is in flight.
       for (const id of missing) {
@@ -187,6 +186,7 @@ globalThis.StopItStrictMode = (() => {
 
   function onVisible() {
     if (document.hidden) return;
+    seen.clear();
     recordOpening();
     refresh();
   }
@@ -197,14 +197,16 @@ globalThis.StopItStrictMode = (() => {
       visit = lastOpened = null;
       seen.clear();
       document.querySelectorAll('[data-stopit-strict-grid], [data-stopit-strict-problem]').forEach(clear);
+      if (previous) document.dispatchEvent(new Event('stopit-account-changed'));
     }
     recordOpening();
     refresh();
   }
-  chrome.runtime.onMessage.addListener((message) => {
-    if (since && message.type === 'strict-tab-active') onVisible();
+  StopItPlatform.onActive(() => {
+    if (since) onVisible();
   });
   function onEntry(event) {
+    if (event.type === 'popstate') traversal = true;
     if (event.navigationType === 'traverse' || event.navigationType === 'push') {
       traversal = event.navigationType === 'traverse';
     }
@@ -219,9 +221,9 @@ globalThis.StopItStrictMode = (() => {
     seen.clear();
     for (const [target, event, listener] of [
       [document, 'visibilitychange', onVisible], [window, 'focus', onVisible],
-      [document, 'loadedmetadata', recordOpening], [document, 'loadeddata', recordOpening],
+      [document, 'stopit-video-verified', recordOpening], [document, 'loadedmetadata', recordOpening], [document, 'loadeddata', recordOpening],
       [document, 'yt-navigate-finish', onPageData], [document, 'yt-page-data-updated', onPageData],
-      [window, 'pageshow', onVisible], [navigation, 'currententrychange', onEntry]
+      [window, 'pageshow', onVisible], [window.navigation || window, window.navigation ? 'currententrychange' : 'popstate', onEntry]
     ]) {
       if (since) target.addEventListener(event, listener, true);
       else target.removeEventListener(event, listener, true);
@@ -230,7 +232,7 @@ globalThis.StopItStrictMode = (() => {
     else recordOpening();
     refresh();
   });
-  chrome.storage.local.onChanged.addListener((changes) => {
+  StopItPlatform.local.onChanged.addListener((changes) => {
     if (!since || !account) return;
     const prefix = 'strictSeen:' + account + ':';
     let changed = false;

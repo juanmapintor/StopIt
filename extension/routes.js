@@ -1,4 +1,4 @@
-globalThis.StopItRoutes = (() => {
+const StopItRoutes = (() => {
   const subscriptions = 'https://www.youtube.com/feed/subscriptions';
   function videoId(url) {
     if (url.pathname === '/watch' || url.pathname === '/watch/') return url.searchParams.get('v');

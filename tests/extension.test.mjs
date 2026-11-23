@@ -233,7 +233,7 @@ test('Chrome elige el catálogo de los ajustes y usa inglés como idioma predete
     assert.equal(await page.title(), labels.settingsTitle);
     assert.equal(await page.locator('html').getAttribute('lang'), labels.languageCode);
     assert.equal(await page.getByRole('heading').textContent(), labels.settingsTitle);
-    for (const label of ['showNotifications', 'strictMode']) {
+    for (const label of ['showNotifications', 'showCreateButton', 'strictMode']) {
       assert.ok(await page.getByRole('switch', { name: labels[label], exact: true }).isVisible());
     }
   } finally {
@@ -728,6 +728,51 @@ test('la campana y el panel respetan el ajuste guardado en todas las pestañas',
   } finally {
     await worker.evaluate(() => chrome.storage.local.remove('showNotifications'));
     await Promise.all([...pages, settings].map((page) => page.close()));
+  }
+});
+
+test('Crear se oculta solo en la cabecera y su ajuste se aplica en todas las pestañas', async () => {
+  const pages = await Promise.all([context.newPage(), context.newPage()]);
+  const settings = await context.newPage();
+  const worker = await strictWorker();
+  try {
+    for (const page of pages) {
+      await page.route('**/feed/history', route => route.fulfill({ contentType: 'text/html', body: `
+        <ytd-masthead><div id="buttons">
+          <ytd-topbar-menu-button-renderer id="slot" style="padding:8px">
+            <button id="create" aria-label="Create">+</button>
+          </ytd-topbar-menu-button-renderer>
+          <button id="playlist">Crear playlist</button>
+          <ytd-notification-topbar-button-renderer><button id="bell">Campana</button></ytd-notification-topbar-button-renderer>
+        </div></ytd-masthead>
+        <main><button id="outside">Crear</button></main>` }));
+      await page.goto(youtube + '/feed/history');
+      assert.equal(await page.locator('#slot').isVisible(), false);
+      assert.ok(await page.locator('#playlist').isVisible());
+      assert.ok(await page.locator('#outside').isVisible());
+    }
+    await settings.goto(await worker.evaluate(() => chrome.runtime.getURL('settings.html')));
+    const toggle = settings.getByRole('switch', { name: labels.showCreateButton, exact: true });
+    assert.equal(await toggle.isChecked(), false);
+    await toggle.check();
+    for (const page of pages) {
+      await page.locator('#create').waitFor();
+      assert.equal(await page.locator('#bell').isVisible(), false);
+    }
+    await pages[0].reload();
+    await pages[0].locator('#create').waitFor();
+    await toggle.uncheck();
+    for (const page of pages) await page.locator('#slot').waitFor({ state: 'hidden' });
+
+    const page = pages[0];
+    await page.locator('#buttons').evaluate(el => el.insertAdjacentHTML('beforeend', '<button id="action">Crear</button>'));
+    const action = page.locator('#action');
+    await action.waitFor({ state: 'hidden' });
+    await action.evaluate(el => { el.textContent = 'Buscar'; });
+    await action.waitFor();
+  } finally {
+    await worker.evaluate(() => chrome.storage.local.remove('showCreateButton'));
+    await Promise.all([...pages, settings].map(page => page.close()));
   }
 });
 

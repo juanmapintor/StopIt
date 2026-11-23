@@ -3,7 +3,7 @@
   "name": "__MSG_extensionName__",
   "description": "__MSG_extensionDescription__",
   "default_locale": "en",
-  "version": "3.1.0",
+  "version": "3.2.0",
   "minimum_chrome_version": "120",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA08KDguGXVvb5E/TpGeUDKgO80c0AF4CwL+gWlYiAre9AAxkNoCy1hE5krwztZ9m+FG9sQMwwP/epAb7lDRYX3wqEclYOX8Pe6SWhvMyyhkKk2qt70c3Ssr0txUGh7FIfuWeJch/2dI8wn9M4YwyL8Um/A573O+1o4JRQTYUIFufV5jEOzqci9izuma4AnsHnkGlzdEcdoaKMNJ8rLpWsxomtMIQSshzxbsjYfskShpQGAhA1FO3NJTCLFvEqtH2tG3fN/S/n6H+K3GTNua4HIB/TKvkAKDh05BajQGA4ISh3/GP8v58Ja9Mohm/jkMWgURHmY/aKdffZFtnuVfeXfQIDAQAB",
   "permissions": [
@@ -47,6 +47,7 @@
       "js": [
         "routes.js",
         "navigation.js",
+        "platform.js",
         "preferences.js",
         "youtube-controls.js",
         "feed-dates.js",
@@ -71,6 +72,7 @@
       ],
       "js": [
         "routes.js",
+        "platform.js",
         "preferences.js",
         "feed-dates.js",
         "strict-sections.js",

@@ -1,5 +1,5 @@
 (() => {
-  const watchPage = 'ytd-watch-flexy:not([hidden]), ytd-watch-grid:not([hidden])';
+  const watchPage = 'ytd-watch-flexy:not([hidden]), ytd-watch-grid:not([hidden]), ytm-watch:not([hidden])';
   const source = '/feed/subscriptions?stopit-panel=1';
   let slot,
     panel,
@@ -21,7 +21,7 @@
       empty: 'panelEmpty',
       error: 'panelError'
     };
-    message.textContent = messages[state] ? chrome.i18n.getMessage(messages[state]) : '';
+    message.textContent = messages[state] ? StopItPlatform.message(messages[state]) : '';
     status.hidden = state === 'ready';
     subscriptionsLink.hidden = state === 'loading' || state === 'ready';
     retry.hidden = state !== 'error';
@@ -44,14 +44,15 @@
     slot.className = 'stopit-watch-slot';
     panel = document.createElement('section');
     panel.className = 'stopit-watch-panel';
-    panel.lang = chrome.i18n.getMessage('languageCode');
-    panel.setAttribute('aria-label', chrome.i18n.getMessage('subscriptions'));
+    panel.lang = StopItPlatform.message('languageCode');
+    panel.setAttribute('aria-label', StopItPlatform.message('subscriptions'));
     frame = document.createElement('iframe');
-    frame.title = chrome.i18n.getMessage('subscriptionVideos');
+    frame.title = StopItPlatform.message('subscriptionVideos');
     frame.addEventListener('load', () => {
-      if (!frame || frame.dataset.stopitState !== 'loading') return;
+      if (!frame) return;
       const doc = frame.contentDocument;
-      if (!doc || (doc.URL !== 'about:blank' && !doc.querySelector('ytd-app, ytd-browse'))) {
+      if (doc) StopItPlatform.mountPanel?.(frame);
+      if (!doc || (doc.URL !== 'about:blank' && !doc.querySelector('ytd-app, ytd-browse, ytm-app, ytm-browse, main'))) {
         frame.dataset.stopitState = 'error';
       }
     });
@@ -62,11 +63,11 @@
     status.append(message);
     retry = document.createElement('button');
     retry.type = 'button';
-    retry.textContent = chrome.i18n.getMessage('retry');
+    retry.textContent = StopItPlatform.message('retry');
     retry.onclick = loadFeed;
     subscriptionsLink = document.createElement('a');
-    subscriptionsLink.href = StopItRoutes.subscriptions;
-    subscriptionsLink.textContent = chrome.i18n.getMessage('openSubscriptions');
+    subscriptionsLink.href = StopItPlatform.subscriptions;
+    subscriptionsLink.textContent = StopItPlatform.message('openSubscriptions');
     panel.append(frame, status, retry, subscriptionsLink);
     slot.append(panel);
     stateObserver = new MutationObserver(updateStatus);
@@ -144,7 +145,8 @@
       renderer?.closest('#related') ||
       renderer ||
       watch.querySelector('#secondary-inner > #related, #below > #related');
-    const parent = related?.parentElement || watch.querySelector('#secondary-inner, #secondary');
+    const mobileContent = watch.querySelector('.watch-below-the-player, ytm-single-column-watch-next-results-renderer');
+    const parent = related?.parentElement || watch.querySelector('#secondary-inner, #secondary, #below') || mobileContent;
     if (!parent) return;
     if (slot?.parentElement === parent && (!related || related.nextElementSibling === slot)) {
       scheduleMeasure();
@@ -153,6 +155,7 @@
     if (panel) unmount();
     createPanel();
     if (related) related.after(slot);
+    else if (mobileContent) parent.prepend(slot);
     else parent.append(slot);
     relatedBlock = related;
     measurePanel();
@@ -171,7 +174,7 @@
 
   // Watch containers can be stamped late or replaced on a responsive layout change.
   const targets =
-    watchPage + ', #secondary-inner, #secondary, #related, ytd-watch-next-secondary-results-renderer';
+    watchPage + ', .watch-below-the-player, ytm-single-column-watch-next-results-renderer, #below, #secondary-inner, #secondary, #related, ytd-watch-next-secondary-results-renderer';
   const observer = new MutationObserver((records) => {
     if (!StopItRoutes.videoId(new URL(location.href))) return;
     if (panel && !panel.isConnected) return schedule();
@@ -186,9 +189,10 @@
       schedule();
   });
   observer.observe(document, { childList: true, subtree: true });
+  document.addEventListener('stopit-account-changed', () => { if (frame?.isConnected) loadFeed(); });
   document.addEventListener('yt-navigate-finish', schedule);
   document.addEventListener('yt-page-data-updated', schedule);
-  navigation.addEventListener('currententrychange', schedule);
+  window.navigation?.addEventListener('currententrychange', schedule);
   window.addEventListener('pageshow', schedule);
   schedule();
 })();

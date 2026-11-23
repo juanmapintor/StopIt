@@ -6,8 +6,10 @@
     <title data-i18n="settingsTitle"></title>
     <link rel="stylesheet" href="settings.css">
     <script src="localize-page.js" defer></script>
+    <script src="platform.js" defer></script>
     <script src="preferences.js" defer></script>
     <script src="settings.js" defer></script>
+    <script src="settings-page.js" defer></script>
   </head>
   <body>
     <main>
@@ -18,6 +20,13 @@
           <span class="description" id="description" data-i18n="notificationsDescription"></span>
         </span>
         <input type="checkbox" role="switch" id="notifications" data-preference="showNotifications" aria-labelledby="name" aria-describedby="description" disabled>
+      </label>
+      <label for="create-button">
+        <span>
+          <strong id="create-name" data-i18n="showCreateButton"></strong>
+          <span class="description" id="create-description" data-i18n="createButtonDescription"></span>
+        </span>
+        <input type="checkbox" role="switch" id="create-button" data-preference="showCreateButton" aria-labelledby="create-name" aria-describedby="create-description" disabled>
       </label>
       <label for="strict-mode">
         <span>
