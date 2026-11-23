@@ -6,7 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright-core';
 
-const extension = fileURLToPath(new URL('../extension/', import.meta.url));
+const extension = process.env.STOPIT_TEST_EXTENSION || fileURLToPath(new URL('../extension/', import.meta.url));
 const youtube = 'https://www.youtube.com';
 const subscriptions = youtube + '/feed/subscriptions';
 const ids = {

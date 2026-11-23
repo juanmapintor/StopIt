@@ -4,16 +4,21 @@
 
 Extensión para Chrome de escritorio. Al entrar a YouTube o tocar Inicio, abre tus suscripciones. Al abrir un video, el panel lateral muestra ese mismo feed. StopIt oculta los accesos a Shorts y te lleva a Suscripciones cuando abrís uno.
 
+Desarrollé StopIt con ayuda de inteligencia artificial, principalmente para mi propio uso. Lo comparto para que puedas usarlo, adaptarlo a tus hábitos o distribuir tu propia versión.
+
 ## Instalar en Chrome
 
-Necesitás Chrome 120 o posterior y una copia de este repositorio en tu equipo.
+Necesitás Chrome 120 o posterior.
 
-1. Abrí `chrome://extensions`.
-2. Activá **Modo de desarrollador**.
-3. Elegí **Cargar extensión sin empaquetar** y seleccioná la carpeta `extension`, donde está `manifest.json`.
-4. Recargá las pestañas de YouTube que ya estaban abiertas. La extensión usa la sesión de YouTube de ese perfil.
+1. Descargá el archivo para Chrome de la versión que quieras instalar. Su nombre sigue el formato `stopit-v3.1.0-chrome.zip`. [Releases de StopIt](https://github.com/juanmapintor/StopIt/releases)
+2. Descomprimí el ZIP en una carpeta que puedas conservar. El archivo `manifest.json` está en la raíz.
+3. Abrí `chrome://extensions` y activá **Modo de desarrollador**.
+4. Elegí **Cargar extensión sin empaquetar** y seleccioná la carpeta que contiene `manifest.json`.
+5. Recargá las pestañas de YouTube que ya estaban abiertas. La extensión usa la sesión de YouTube de ese perfil.
 
-Para comprobar la instalación, abrí Inicio en YouTube. La dirección cambia a `/feed/subscriptions`. Para aplicar una actualización, usá el botón de recarga de StopIt en la página de extensiones y recargá YouTube.
+Si ya tenés una copia del repositorio, podés empezar en el paso 3 y seleccionar la carpeta `extension`. Para comprobar la instalación, abrí Inicio en YouTube. La dirección cambia a `/feed/subscriptions`.
+
+Para actualizar, reemplazá los archivos de la extensión en la misma carpeta con los de la nueva versión. Usá el botón de recarga de StopIt en la página de extensiones y recargá YouTube.
 
 StopIt usa el idioma de la interfaz de Chrome. Si usás español, incluida cualquier variante regional, los ajustes, las secciones y los avisos aparecen en español. Para todos los demás idiomas, StopIt usa inglés. YouTube sigue mostrando sus propios controles y contenido en el idioma que elegiste en el sitio.
 
@@ -51,6 +56,10 @@ StopIt recuerda localmente las visitas, los primeros identificadores del feed y 
 
 La extensión carga Suscripciones desde YouTube con la sesión activa de la pestaña. Guarda en la memoria de la sesión de Chrome la clasificación de hasta 512 identificadores de video. Solicita acceso a los dominios de YouTube que usa para navegar y verificar videos, y emplea reglas de Chrome para redirigir la pestaña antes de cargar el reproductor.
 
+## Licencia
+
+StopIt se distribuye bajo **MIT No Attribution (MIT-0)**. Podés usar, copiar, modificar, redistribuir y vender el software, incluso sin atribución. Lo comparto tal cual, sin garantías. Cada persona lo usa bajo su propia responsabilidad. La licencia excluye la responsabilidad de los autores y titulares de derechos en la medida permitida por la ley aplicable. [Texto de la licencia](LICENSE)
+
 ## Pruebas
 
 Desde la raíz del repositorio, ejecutá estos comandos con Node.js 22 o posterior.
@@ -62,3 +71,7 @@ npm test
 ```
 
 También podés indicar un ejecutable de Chrome for Testing con la variable `CHROME_FOR_TESTING`. Las pruebas cargan la extensión en un perfil temporal y usan páginas de prueba con fechas conocidas. Cubren los idiomas de la interfaz, el orden de Inicio y del panel lateral, los directos, la paginación, el modo estricto, las notificaciones, los Shorts, el historial de navegación y los errores de verificación.
+
+## Publicar una versión en GitHub
+
+Desde el commit que querés publicar, subí una etiqueta con el prefijo `v` seguido de la versión de `extension/manifest.json`, por ejemplo `v3.1.0`. GitHub Actions verifica la versión, empaqueta la extensión con su licencia y ejecuta las pruebas en Chromium sobre el ZIP descomprimido. Si pasan, publica el paquete en GitHub Releases.

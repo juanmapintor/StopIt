@@ -1,0 +1,67 @@
+name: Release Chrome extension
+
+on:
+  push:
+    tags: ['v*']
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: ${{ !github.event.deleted }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      ZIP_NAME: stopit-${{ github.ref_name }}-chrome.zip
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Package the tagged extension
+        run: |
+          version=$(jq -er '.version' extension/manifest.json)
+          if [[ "$GITHUB_REF_NAME" != "v$version" ]]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match manifest version $version."
+            exit 1
+          fi
+          mkdir -p dist
+          git archive --format=zip --add-file=LICENSE --output="dist/$ZIP_NAME" HEAD:extension
+          unzip -q "dist/$ZIP_NAME" -d "$RUNNER_TEMP/stopit-extension"
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+
+      - name: Test the packaged extension in Chromium
+        env:
+          STOPIT_TEST_EXTENSION: ${{ runner.temp }}/stopit-extension
+        run: |
+          npm ci
+          npx playwright-core install --with-deps chromium
+          npm test
+
+      - name: Publish the ZIP as a GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="$GITHUB_REF_NAME"
+          if ! draft=$(gh release view "$tag" --json isDraft --jq '.isDraft'); then
+            cat > "$RUNNER_TEMP/release-notes.md" <<EOF
+          **Español** · Descargá **$ZIP_NAME**, descomprimilo y seleccioná la carpeta con **Cargar extensión sin empaquetar** en Chrome. [Guía en español]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/blob/$tag/README.md)
+
+          **English** · Download **$ZIP_NAME**, extract it, and select the folder with **Load unpacked** in Chrome. [English guide]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/blob/$tag/README.en.md)
+          EOF
+            gh release create "$tag" --verify-tag --draft --title "StopIt $tag" \
+              --notes-file "$RUNNER_TEMP/release-notes.md" --generate-notes
+          elif [[ "$draft" == "false" ]]; then
+            # A successful rerun leaves the published asset in place.
+            gh release view "$tag" --json assets | jq -e --arg name "$ZIP_NAME" \
+              'any(.assets[]; .name == $name and .state == "uploaded")'
+            exit 0
+          fi
+          gh release upload "$tag" "dist/$ZIP_NAME" --clobber
+          gh release edit "$tag" --draft=false

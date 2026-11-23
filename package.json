@@ -1,6 +1,7 @@
 {
   "name": "stopit-youtube",
   "version": "3.1.0",
+  "license": "MIT-0",
   "private": true,
   "scripts": {
     "test": "node --test tests/extension.test.mjs"

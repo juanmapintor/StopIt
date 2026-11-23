@@ -4,16 +4,21 @@
 
 StopIt is a desktop Chrome extension that puts the channels you subscribe to on YouTube Home and beside the video player. It hides Shorts throughout YouTube and takes you to Subscriptions when you open one.
 
+I developed StopIt with the help of AI, primarily for my own use. I’m sharing it so you can use it, adapt it to your habits, or distribute your own version.
+
 ## Install in Chrome
 
-You need Chrome 120 or later and a local copy of this repository.
+You need Chrome 120 or later.
 
-1. Open `chrome://extensions`.
-2. Turn on **Developer mode**.
-3. Select **Load unpacked** and choose the `extension` folder containing `manifest.json`.
-4. Reload any open YouTube tabs. StopIt uses the YouTube account signed in to that Chrome profile.
+1. Download the Chrome ZIP for the version you want to install. Look for a filename such as `stopit-v3.1.0-chrome.zip`. [StopIt releases](https://github.com/juanmapintor/StopIt/releases)
+2. Extract the ZIP to a folder you can keep. It contains `manifest.json` at the top level.
+3. Open `chrome://extensions` and turn on **Developer mode**.
+4. Select **Load unpacked** and choose the folder containing `manifest.json`.
+5. Reload any open YouTube tabs. StopIt uses the YouTube account signed in to that Chrome profile.
 
-To check the installation, open YouTube Home. The address changes to `/feed/subscriptions`. After updating the extension files, click the reload button for StopIt on the extensions page, then reload YouTube.
+If you already have a local copy of the repository, start at step 3 and select the `extension` folder. To check the installation, open YouTube Home. The address changes to `/feed/subscriptions`.
+
+To update, replace the extension files in the same folder with the files from the new version. Click the reload button for StopIt on the extensions page, then reload YouTube.
 
 StopIt follows Chrome’s display language. Its settings, section names, and messages appear in Spanish for all Spanish regional variants. It uses English for every other language. YouTube displays its own content and controls in the language you chose on the site.
 
@@ -51,6 +56,10 @@ Chrome stores visits and the IDs of the first videos in the feed and of watched 
 
 StopIt loads Subscriptions directly from YouTube using the tab’s active session. It keeps the video or Short classification for up to 512 video IDs in Chrome’s session storage. It requests access to the YouTube domains it uses for navigation and verification, and uses Chrome’s redirect rules before the player loads.
 
+## License
+
+StopIt uses the **MIT No Attribution (MIT-0)** license. You can use, copy, modify, redistribute, and sell the software, including without attribution. I share it as is, without warranties. You use it at your own risk. The license excludes liability for authors and copyright holders to the extent permitted by applicable law. [Full license](LICENSE)
+
 ## Run the tests
 
 From the repository root, run these commands with Node.js 22 or later.
@@ -62,3 +71,7 @@ npm test
 ```
 
 To use an existing Chrome for Testing installation, set `CHROME_FOR_TESTING` to its executable path. The tests load the extension in a temporary profile and use sample YouTube pages with known dates. They cover localization, Home and sidebar ordering, live streams, pagination, strict mode, notifications, Shorts, navigation history, and verification errors.
+
+## Publish a GitHub release
+
+Tag the commit you want to release with `v` followed by the version in `extension/manifest.json`, for example `v3.1.0`, and push the tag. GitHub Actions verifies the version, packages the extension with its license, and runs the Chromium tests on the extracted ZIP. If they pass, it publishes the ZIP on GitHub Releases.
