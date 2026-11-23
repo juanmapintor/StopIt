@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "StopIt para YouTube",
-  "description": "Abre tus suscripciones en orden cronológico y bloquea los Shorts.",
-  "version": "1.0.0",
+  "description": "Muestra tus suscripciones en Inicio y junto al reproductor, en orden cronológico, y bloquea los Shorts.",
+  "version": "2.1.1",
   "minimum_chrome_version": "120",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA08KDguGXVvb5E/TpGeUDKgO80c0AF4CwL+gWlYiAre9AAxkNoCy1hE5krwztZ9m+FG9sQMwwP/epAb7lDRYX3wqEclYOX8Pe6SWhvMyyhkKk2qt70c3Ssr0txUGh7FIfuWeJch/2dI8wn9M4YwyL8Um/A573O+1o4JRQTYUIFufV5jEOzqci9izuma4AnsHnkGlzdEcdoaKMNJ8rLpWsxomtMIQSshzxbsjYfskShpQGAhA1FO3NJTCLFvEqtH2tG3fN/S/n6H+K3GTNua4HIB/TKvkAKDh05BajQGA4ISh3/GP8v58Ja9Mohm/jkMWgURHmY/aKdffZFtnuVfeXfQIDAQAB",
   "permissions": [
@@ -17,6 +17,11 @@
   "background": {
     "service_worker": "background.js"
   },
+  "action": {
+    "default_title": "Ajustes de StopIt",
+    "default_popup": "settings.html"
+  },
+  "options_page": "settings.html",
   "declarative_net_request": {
     "rule_resources": [
       {
@@ -35,12 +40,36 @@
       ],
       "run_at": "document_start",
       "css": [
-        "youtube.css"
+        "youtube.css",
+        "watch-panel.css"
       ],
       "js": [
         "routes.js",
         "navigation.js",
+        "preferences.js",
+        "youtube-controls.js",
         "metadata.js",
+        "feed.js",
+        "watch-panel.js"
+      ],
+      "exclude_matches": [
+        "https://www.youtube.com/feed/subscriptions?stopit-panel=1"
+      ]
+    },
+    {
+      "matches": [
+        "https://www.youtube.com/feed/subscriptions?stopit-panel=1"
+      ],
+      "all_frames": true,
+      "run_at": "document_start",
+      "css": [
+        "youtube.css",
+        "panel-feed.css"
+      ],
+      "js": [
+        "routes.js",
+        "metadata.js",
+        "panel-feed.js",
         "feed.js"
       ]
     }

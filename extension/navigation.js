@@ -77,32 +77,3 @@
   );
   checkLocation();
 })();
-
-// The expanded navigation sometimes exposes Shorts as a button without an href.
-(() => {
-  const entry = 'ytd-guide-entry-renderer, ytd-mini-guide-entry-renderer';
-  const scopes = 'ytd-guide-renderer, ytd-mini-guide-renderer';
-  const attached = new WeakSet();
-  function mark(root) {
-    for (const item of root.querySelectorAll(entry)) {
-      const name = item.querySelector('#title, .title, yt-formatted-string')?.textContent.trim();
-      item.toggleAttribute('data-stopit-guide-short', name?.toLowerCase() === 'shorts');
-    }
-  }
-  function attach() {
-    for (const root of document.querySelectorAll(scopes)) {
-      if (attached.has(root)) continue;
-      attached.add(root);
-      mark(root);
-      new MutationObserver(() => mark(root)).observe(root, {
-        childList: true,
-        subtree: true,
-        characterData: true
-      });
-    }
-  }
-  document.addEventListener('DOMContentLoaded', attach);
-  document.addEventListener('yt-navigate-finish', attach);
-  document.addEventListener('yt-page-data-updated', attach);
-  window.addEventListener('pageshow', attach);
-})();

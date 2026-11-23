@@ -226,6 +226,7 @@
         before = tile;
       }
     }
+    globalThis.StopItPanelFeed?.updated(state.grid);
   }
 
   function schedule() {

@@ -1,0 +1,105 @@
+/* Hide the native recommendations from the first paint, including their loading shell. */
+:is(ytd-watch-flexy, ytd-watch-grid) #related-skeleton,
+:is(ytd-watch-flexy, ytd-watch-grid)
+  :is(#related, ytd-watch-next-secondary-results-renderer):not(
+    :has(ytd-playlist-panel-renderer, ytd-live-chat-frame, #chat)
+  ) {
+  display: none !important;
+}
+
+.stopit-watch-panel {
+  --stopit-muted: var(--yt-spec-text-secondary, #606060);
+  color: var(--stopit-muted);
+  font:
+    14px/1.45 Roboto,
+    Arial,
+    sans-serif;
+  position: relative;
+  min-width: 0;
+  width: 100%;
+}
+html[dark] .stopit-watch-panel {
+  --stopit-muted: var(--yt-spec-text-secondary, #aaa);
+}
+.stopit-watch-panel a {
+  color: inherit;
+}
+.stopit-watch-panel p {
+  margin: 0 0 8px;
+}
+.stopit-watch-panel button {
+  font: inherit;
+  color: var(--yt-spec-call-to-action, LinkText);
+  background: none;
+  border: 0;
+  padding: 4px 0;
+  margin-inline-end: 12px;
+  cursor: pointer;
+}
+.stopit-watch-panel iframe {
+  display: block;
+  width: 100%;
+  height: max(240px, calc(100dvh - var(--stopit-panel-top, 0px)));
+  border: 0;
+  background: transparent;
+  color-scheme: light dark;
+}
+:is(ytd-watch-flexy, ytd-watch-grid)[theater] .stopit-watch-panel iframe {
+  height: clamp(240px, 74vh, 900px);
+}
+.stopit-watch-panel iframe:not([data-stopit-state='ready']) {
+  pointer-events: none;
+  visibility: hidden;
+}
+.stopit-watch-panel iframe:not([data-stopit-state='loading'], [data-stopit-state='ready']) {
+  position: absolute;
+  height: 1px;
+}
+.stopit-watch-panel iframe[data-stopit-state='loading'] + p {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+.stopit-watch-panel iframe[data-stopit-state='loading'] + p::before {
+  content: '';
+  width: 24px;
+  height: 24px;
+  border: 2px solid color-mix(in srgb, currentColor 22%, transparent);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: stopit-spin 800ms linear infinite;
+}
+.stopit-watch-panel iframe[data-stopit-state='loading'] + p span {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+@keyframes stopit-spin {
+  to { transform: rotate(1turn); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .stopit-watch-panel iframe[data-stopit-state='loading'] + p::before {
+    animation: none;
+  }
+}
+
+/* In layouts that place the queue/chat inside Related, keep those native
+   controls and hide only the recommendation entries around them. */
+:is(ytd-watch-flexy, ytd-watch-grid)
+  :is(#related, ytd-watch-next-secondary-results-renderer)
+  :is(
+    ytd-compact-video-renderer,
+    ytd-compact-radio-renderer,
+    ytd-compact-playlist-renderer,
+    yt-lockup-view-model,
+    yt-chip-cloud-renderer,
+    yt-related-chip-cloud-renderer,
+    ytd-continuation-item-renderer
+  ):not(ytd-playlist-panel-renderer *, ytd-live-chat-frame *, #chat *) {
+  display: none !important;
+}

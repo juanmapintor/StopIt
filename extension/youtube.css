@@ -8,6 +8,12 @@ ytd-mini-guide-entry-renderer:has(
 ),
 ytd-guide-entry-renderer:has([title='Shorts' i]),
 ytd-reel-shelf-renderer,
+/* Search places the heading, all Shorts rows and the expand button in one grid. */
+ytd-search grid-shelf-view-model:has(
+  ytm-shorts-lockup-view-model,
+  ytm-shorts-lockup-view-model-v2,
+  ytd-reel-item-renderer
+),
 ytd-browse[page-subtype='home'],
 ytd-rich-section-renderer:has(
   :is(ytm-shorts-lockup-view-model, ytm-shorts-lockup-view-model-v2, a[href^='/shorts/'])
@@ -15,9 +21,23 @@ ytd-rich-section-renderer:has(
 ytd-rich-item-renderer:has(
   :is(ytm-shorts-lockup-view-model, ytm-shorts-lockup-view-model-v2, a[href^='/shorts/'])
 ),
-[data-stopit-guide-short],
+[data-stopit-shorts-control],
 [data-stopit-hidden],
 html[data-stopit-leaving] :is(video, #movie_player, ytd-shorts) {
+  display: none !important;
+}
+
+/* The notifications menu can be mounted in a portal outside the masthead. */
+html:not([data-stopit-show-notifications]) :is(
+  ytd-notification-topbar-button-renderer,
+  ytd-masthead a[href='/feed/notifications'],
+  ytd-masthead :is(button, [role='button']):is([aria-label^='Notificaciones' i], [aria-label^='Notifications' i]),
+  ytd-multi-page-menu-renderer[menu-style='multi-page-menu-style-type-notifications'],
+  ytd-popup-container ytd-notification-section-renderer,
+  tp-yt-iron-dropdown:has(
+    :is(ytd-multi-page-menu-renderer[menu-style='multi-page-menu-style-type-notifications'], ytd-notification-section-renderer):not([hidden], [hidden] *)
+  )
+) {
   display: none !important;
 }
 
