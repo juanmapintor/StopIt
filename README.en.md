@@ -2,11 +2,38 @@
 
 [Leer en español](README.md)
 
-StopIt is a desktop Chrome extension that puts the channels you subscribe to on YouTube Home and beside the video player. It hides Shorts throughout YouTube and takes you to Subscriptions when you open one.
+StopIt opens your subscriptions on YouTube Home and hides Shorts. On phones it runs as a userscript in Safari or Firefox. The desktop Chrome extension also shows your subscriptions beside the video player.
 
 I developed StopIt with the help of AI, primarily for my own use. I’m sharing it so you can use it, adapt it to your habits, or distribute your own version.
 
-## Install in Chrome
+## Install on your phone
+
+### iPhone or iPad with Safari
+
+1. Install [Userscripts](https://apps.apple.com/app/userscripts/id1463298887), open the app once, and enable the extension in Safari.
+2. In Safari, open the [StopIt userscript](https://raw.githubusercontent.com/juanmapintor/StopIt/main/mobile/stopit.user.js). Open **Userscripts** in the page’s extensions menu and confirm installation. If you already downloaded the file, you can also save it in the directory shown in the Userscripts app.
+3. Open YouTube in Safari and allow Userscripts to run on the site. Reload the tab.
+
+### Android with Firefox and Violentmonkey
+
+1. In Firefox for Android, install [Violentmonkey](https://addons.mozilla.org/android/addon/violentmonkey/).
+2. Open the [StopIt userscript](https://raw.githubusercontent.com/juanmapintor/StopIt/main/mobile/stopit.user.js) in that Firefox browser and confirm installation in Violentmonkey. If you already have the local file, you can also create a script in the manager’s editor, replace its contents with `stopit.user.js`, and save it.
+3. Open YouTube in Firefox and reload any YouTube tabs that were already open.
+
+### What to expect on mobile
+
+Open [YouTube Home](https://m.youtube.com/) in the configured browser. You’ll land on Subscriptions using the account signed in there. StopIt hides Shorts shelves and cards, including new ones as you scroll. On a video page, select **Back to my subscriptions** below the player to return to your feed.
+
+Direct `/shorts/` links open Subscriptions. For a `/watch?v=…` link, StopIt checks whether YouTube identifies the current video as a Short in the page’s canonical URL. If that information is missing, you can still use the player. Redirect timing depends on when the manager starts the script and YouTube provides the metadata. If a link opens the YouTube app, choose to open it in the configured browser to use StopIt.
+
+The script runs on YouTube pages and uses your browser session. To update, check for updates in the manager or open the installation link again. The sidebar and strict mode are desktop extension features.
+
+### Acknowledgments
+
+- Thank you to Justin Wasack (quoid), ACTCD, and the Userscripts contributors. Your work lets people run StopIt in Safari with the YouTube account they already use on their iPhone. [Userscripts repository](https://github.com/quoid/userscripts)
+- Thank you to Gerald (gera2ld), tophf, and the Violentmonkey contributors for making it possible to run the same script in Firefox for Android. [Violentmonkey repository](https://github.com/violentmonkey/violentmonkey)
+
+## Install in desktop Chrome
 
 You need Chrome 120 or later.
 
@@ -22,7 +49,7 @@ To update, replace the extension files in the same folder with the files from th
 
 StopIt follows Chrome’s display language. Its settings, section names, and messages appear in Spanish for all Spanish regional variants. It uses English for every other language. YouTube displays its own content and controls in the language you chose on the site.
 
-## What you’ll see on YouTube
+## What you’ll see in desktop Chrome
 
 - **Home and Subscriptions.** Videos appear newest first. StopIt filters out recommendation shelves, Shorts, scheduled premieres, and cards for ads, playlists, and mixes in the subscription feed. Live streams appear in order of their start time when YouTube provides it. Otherwise, they keep their place in the feed. Replays appear by publication date. Scroll down to load more videos.
 - **Shorts.** StopIt hides the sidebar shortcut, Shorts rows in the feed, and entire Shorts shelves in search results, including shelves added as you scroll. It also hides the Shorts filter or tab in History, playlists, Watch Later, Liked videos, search, and channel pages.
@@ -66,9 +93,11 @@ From the repository root, run these commands with Node.js 22 or later.
 
 ```sh
 npm ci
-npx playwright-core install chromium
+npx playwright-core install chromium firefox webkit
 npm test
 ```
+
+The mobile tests run the userscript in WebKit and Firefox on sample pages that reproduce YouTube’s mobile navigation and feed.
 
 To use an existing Chrome for Testing installation, set `CHROME_FOR_TESTING` to its executable path. The tests load the extension in a temporary profile and use sample YouTube pages with known dates. They cover localization, Home and sidebar ordering, live streams, pagination, strict mode, notifications, Shorts, navigation history, and verification errors.
 

@@ -36,12 +36,12 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Test the packaged extension in Chromium
+      - name: Test the Chrome extension and mobile userscript
         env:
           STOPIT_TEST_EXTENSION: ${{ runner.temp }}/stopit-extension
         run: |
           npm ci
-          npx playwright-core install --with-deps chromium
+          npx playwright-core install --with-deps chromium firefox webkit
           npm test
 
       - name: Publish the ZIP as a GitHub Release

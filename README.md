@@ -2,11 +2,38 @@
 
 [Read in English](README.en.md)
 
-Extensión para Chrome de escritorio. Al entrar a YouTube o tocar Inicio, abre tus suscripciones. Al abrir un video, el panel lateral muestra ese mismo feed. StopIt oculta los accesos a Shorts y te lleva a Suscripciones cuando abrís uno.
+StopIt abre tus suscripciones al entrar a YouTube o tocar Inicio y oculta los Shorts. En el teléfono funciona como un script para Safari o Firefox. En Chrome de escritorio, la extensión también muestra tus suscripciones junto al reproductor.
 
 Desarrollé StopIt con ayuda de inteligencia artificial, principalmente para mi propio uso. Lo comparto para que puedas usarlo, adaptarlo a tus hábitos o distribuir tu propia versión.
 
-## Instalar en Chrome
+## Instalar en el teléfono
+
+### iPhone o iPad con Safari
+
+1. Instalá [Userscripts](https://apps.apple.com/app/userscripts/id1463298887), abrí la app una vez y activá la extensión en Safari.
+2. Desde Safari, abrí el [script de StopIt](https://raw.githubusercontent.com/juanmapintor/StopIt/main/mobile/stopit.user.js). Abrí **Userscripts** en el menú de extensiones de la página y confirmá la instalación. Si ya descargaste el archivo, también podés guardarlo en la carpeta que indica la app Userscripts.
+3. Abrí YouTube en Safari y permití que Userscripts se ejecute en el sitio. Recargá la pestaña.
+
+### Android con Firefox y Violentmonkey
+
+1. En Firefox para Android, instalá [Violentmonkey](https://addons.mozilla.org/android/addon/violentmonkey/).
+2. Abrí el [script de StopIt](https://raw.githubusercontent.com/juanmapintor/StopIt/main/mobile/stopit.user.js) en ese Firefox y confirmá la instalación en Violentmonkey. Si ya tenés el archivo local, también podés crear un script en el editor del gestor, reemplazar el contenido por el de `stopit.user.js` y guardarlo.
+3. Abrí YouTube en Firefox y recargá las pestañas de YouTube que ya estaban abiertas.
+
+### Qué vas a ver en el teléfono
+
+Abrí [Inicio de YouTube](https://m.youtube.com/) en el navegador configurado. Vas a llegar a Suscripciones con la cuenta que uses ahí. StopIt oculta las filas y tarjetas de Shorts, también las que aparecen al seguir bajando. En un video, el botón **Volver a mis suscripciones** queda debajo del reproductor.
+
+Los enlaces a `/shorts/` llevan directamente a Suscripciones. Si abrís un enlace `/watch?v=…`, StopIt comprueba si YouTube lo identifica como Short en la dirección canónica de esa página. Si falta ese dato, podés seguir usando el reproductor. El momento de la redirección depende de cuándo el gestor ejecute el script y YouTube entregue los metadatos. Si un enlace abre la app oficial de YouTube, elegí abrirlo en el navegador configurado para usar StopIt.
+
+El script se limita a las páginas de YouTube y usa la sesión del navegador. Podés actualizarlo desde el gestor o volver a abrir el mismo enlace de instalación. El panel lateral y el modo estricto son funciones de la extensión de escritorio.
+
+### Agradecimientos
+
+- Gracias a Justin Wasack (quoid), a ACTCD y a quienes contribuyen a Userscripts. Su trabajo permite que StopIt se ejecute en Safari con la cuenta de YouTube que ya usás en el iPhone. [Repositorio de Userscripts](https://github.com/quoid/userscripts)
+- Gracias a Gerald (gera2ld), a tophf y a quienes contribuyen a Violentmonkey por hacer posible que ese mismo script funcione en Firefox para Android. [Repositorio de Violentmonkey](https://github.com/violentmonkey/violentmonkey)
+
+## Instalar en Chrome de escritorio
 
 Necesitás Chrome 120 o posterior.
 
@@ -22,7 +49,7 @@ Para actualizar, reemplazá los archivos de la extensión en la misma carpeta co
 
 StopIt usa el idioma de la interfaz de Chrome. Si usás español, incluida cualquier variante regional, los ajustes, las secciones y los avisos aparecen en español. Para todos los demás idiomas, StopIt usa inglés. YouTube sigue mostrando sus propios controles y contenido en el idioma que elegiste en el sitio.
 
-## Qué vas a ver
+## Qué vas a ver en Chrome de escritorio
 
 - **Inicio y Suscripciones.** Ves primero los videos más recientes de tus canales. StopIt quita los bloques de selección por relevancia, los Shorts, los estrenos programados y las tarjetas de anuncios, listas y mixes del feed de suscripciones. Los directos se intercalan según la hora de inicio que muestra YouTube. Si la tarjeta no indica cuándo empezó el directo, se conserva el orden del feed. Las grabaciones siguen el orden de publicación. La lista se actualiza al bajar.
 - **Shorts.** StopIt oculta el acceso de la barra lateral, las filas de Shorts del feed y las secciones completas de los resultados de búsqueda, también las que aparecen al seguir bajando. Quita el filtro o la pestaña Shorts en el Historial, las listas de reproducción, Ver más tarde, Videos que me gustan, las búsquedas y los canales.
@@ -66,9 +93,11 @@ Desde la raíz del repositorio, ejecutá estos comandos con Node.js 22 o posteri
 
 ```sh
 npm ci
-npx playwright-core install chromium
+npx playwright-core install chromium firefox webkit
 npm test
 ```
+
+Las pruebas móviles ejecutan el script en WebKit y Firefox con páginas de muestra que reproducen la navegación y el listado móvil de YouTube.
 
 También podés indicar un ejecutable de Chrome for Testing con la variable `CHROME_FOR_TESTING`. Las pruebas cargan la extensión en un perfil temporal y usan páginas de prueba con fechas conocidas. Cubren los idiomas de la interfaz, el orden de Inicio y del panel lateral, los directos, la paginación, el modo estricto, las notificaciones, los Shorts, el historial de navegación y los errores de verificación.
 
