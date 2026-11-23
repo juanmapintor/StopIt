@@ -1,16 +1,18 @@
 const StopItPreferences = {
-  async observeNotifications(apply) {
+  async observe(key, apply) {
     let receivedChange = false;
     chrome.storage.local.onChanged.addListener((changes) => {
-      if (!changes.showNotifications) return;
+      if (!Object.hasOwn(changes, key)) return;
       receivedChange = true;
-      apply(changes.showNotifications.newValue === true);
+      apply(changes[key].newValue);
     });
-    const { showNotifications } = await chrome.storage.local.get('showNotifications');
-    if (!receivedChange) apply(showNotifications === true);
+    const stored = await chrome.storage.local.get(key);
+    if (!receivedChange) apply(stored[key]);
   },
 
-  setNotifications(visible) {
-    return chrome.storage.local.set({ showNotifications: visible });
+  set(key, enabled) {
+    // The activation time is also the first cutoff for a newly enabled strict feed.
+    const value = key === 'strictSince' ? (enabled ? Date.now() : 0) : enabled;
+    return chrome.storage.local.set({ [key]: value });
   }
 };

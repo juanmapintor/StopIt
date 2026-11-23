@@ -1,18 +1,19 @@
 <!doctype html>
-<html lang="es">
+<html lang="en">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>StopIt · Verificando video</title>
+<title data-i18n="checkTitle"></title>
 <link rel="stylesheet" href="check.css">
 <main>
   <p class="name">StopIt</p>
-  <h1 id="status" role="status">Verificando el video…</h1>
+  <h1 id="status" role="status" data-i18n="checkingVideo"></h1>
   <p id="detail" hidden></p>
   <div id="actions" hidden>
-    <button id="retry" type="button">Reintentar</button>
-    <a href="https://www.youtube.com/feed/subscriptions">Ir a Suscripciones</a>
+    <button id="retry" type="button" data-i18n="retry"></button>
+    <a href="https://www.youtube.com/feed/subscriptions" data-i18n="goToSubscriptions"></a>
   </div>
 </main>
+<script src="localize-page.js"></script>
 <script src="routes.js"></script>
 <script src="metadata.js"></script>
 <script src="check.js"></script>

@@ -26,10 +26,13 @@ label {
   padding-top: 18px;
   cursor: pointer;
 }
+label + label {
+  margin-top: 18px;
+}
 label strong {
   font-size: 0.95rem;
 }
-#description {
+.description {
   display: block;
   margin-top: 4px;
   font-size: 0.85rem;

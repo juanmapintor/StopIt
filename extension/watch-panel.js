@@ -1,7 +1,8 @@
 (() => {
   const watchPage = 'ytd-watch-flexy:not([hidden]), ytd-watch-grid:not([hidden])';
   const source = '/feed/subscriptions?stopit-panel=1';
-  let panel,
+  let slot,
+    panel,
     frame,
     status,
     message,
@@ -15,12 +16,12 @@
     const state = frame.dataset.stopitState;
     if (state !== 'loading') clearTimeout(timeout);
     const messages = {
-      loading: 'Cargando suscripciones…',
-      signedout: 'Abrí Suscripciones para iniciar sesión.',
-      empty: 'No hay videos en tus suscripciones.',
-      error: 'No se pudieron cargar tus suscripciones.'
+      loading: 'panelLoading',
+      signedout: 'panelSignedOut',
+      empty: 'panelEmpty',
+      error: 'panelError'
     };
-    message.textContent = messages[state] || '';
+    message.textContent = messages[state] ? chrome.i18n.getMessage(messages[state]) : '';
     status.hidden = state === 'ready';
     subscriptionsLink.hidden = state === 'loading' || state === 'ready';
     retry.hidden = state !== 'error';
@@ -39,11 +40,14 @@
 
   let stateObserver;
   function createPanel() {
+    slot = document.createElement('div');
+    slot.className = 'stopit-watch-slot';
     panel = document.createElement('section');
     panel.className = 'stopit-watch-panel';
-    panel.setAttribute('aria-label', 'Suscripciones');
+    panel.lang = chrome.i18n.getMessage('languageCode');
+    panel.setAttribute('aria-label', chrome.i18n.getMessage('subscriptions'));
     frame = document.createElement('iframe');
-    frame.title = 'Videos de tus suscripciones';
+    frame.title = chrome.i18n.getMessage('subscriptionVideos');
     frame.addEventListener('load', () => {
       if (!frame || frame.dataset.stopitState !== 'loading') return;
       const doc = frame.contentDocument;
@@ -58,40 +62,69 @@
     status.append(message);
     retry = document.createElement('button');
     retry.type = 'button';
-    retry.textContent = 'Reintentar';
+    retry.textContent = chrome.i18n.getMessage('retry');
     retry.onclick = loadFeed;
     subscriptionsLink = document.createElement('a');
     subscriptionsLink.href = StopItRoutes.subscriptions;
-    subscriptionsLink.textContent = 'Abrir Suscripciones';
+    subscriptionsLink.textContent = chrome.i18n.getMessage('openSubscriptions');
     panel.append(frame, status, retry, subscriptionsLink);
+    slot.append(panel);
     stateObserver = new MutationObserver(updateStatus);
     stateObserver.observe(frame, { attributes: true, attributeFilter: ['data-stopit-state'] });
     loadFeed();
   }
 
-  // Chat, playlists and the watch layout can all move the top of the list.
-  let sizeRequest;
+  // Measure the slot in the page flow, even while its panel is pinned.
+  // Its position includes any player, chat or playlist above the feed.
+  let sizeRequest, masthead;
   function measurePanel() {
     sizeRequest = undefined;
-    if (!panel?.isConnected) return;
-    const top = Math.max(0, panel.getBoundingClientRect().top);
-    panel.style.setProperty('--stopit-panel-top', top + 'px');
+    if (!slot?.isConnected) return;
+    if (!masthead?.isConnected) {
+      masthead = document.getElementById('masthead-container') || document.querySelector('ytd-masthead');
+      if (masthead) layoutObserver.observe(masthead);
+    }
+    const rect = slot.getBoundingClientRect();
+    const watch = slot.closest(watchPage);
+    const primary = watch?.querySelector('#primary')?.getBoundingClientRect();
+    const sideBySide = primary?.width
+      ? rect.left >= primary.right - 1 || rect.right <= primary.left + 1
+      : watch?.hasAttribute('is-two-columns_') && Boolean(slot.closest('#secondary'));
+    const barBottom = Math.max(0, masthead?.getBoundingClientRect().bottom || 0);
+    const pinned = rect.width > 0 && sideBySide && rect.top <= barBottom;
+    const top = pinned ? barBottom : Math.max(0, rect.top);
+    slot.style.setProperty('--stopit-bar-bottom', barBottom + 'px');
+    // Give the feed a usable viewport while the cinema player is still above the fold.
+    slot.style.setProperty('--stopit-panel-top', (top >= innerHeight ? barBottom : top) + 'px');
+    panel.toggleAttribute('data-stopit-pinned', Boolean(pinned));
+    if (pinned) {
+      // A transformed watch layout can anchor fixed positioning to its own padding box.
+      const container = panel.offsetParent;
+      const origin = container?.getBoundingClientRect();
+      const left = container ? origin.left + container.clientLeft - container.scrollLeft : 0;
+      const top = container ? origin.top + container.clientTop - container.scrollTop : 0;
+      slot.style.setProperty('--stopit-pin-top', (barBottom - top) + 'px');
+      slot.style.setProperty('--stopit-panel-left', (rect.left - left) + 'px');
+      slot.style.setProperty('--stopit-panel-width', rect.width + 'px');
+    }
   }
   function scheduleMeasure() {
     if (sizeRequest === undefined) sizeRequest = requestAnimationFrame(measurePanel);
   }
   const layoutObserver = new ResizeObserver(scheduleMeasure);
+  const viewObserver = new MutationObserver(scheduleMeasure);
 
   function unmount() {
     clearTimeout(timeout);
     layoutObserver.disconnect();
-    window.removeEventListener('scroll', scheduleMeasure);
+    viewObserver.disconnect();
+    window.removeEventListener('scroll', scheduleMeasure, true);
     window.removeEventListener('resize', scheduleMeasure);
     cancelAnimationFrame(sizeRequest);
     sizeRequest = undefined;
     stateObserver?.disconnect();
-    panel?.remove();
-    panel = frame = status = message = retry = subscriptionsLink = relatedBlock = null;
+    slot?.remove();
+    slot = panel = frame = status = message = retry = subscriptionsLink = relatedBlock = masthead = null;
   }
 
   function mount() {
@@ -113,17 +146,21 @@
       watch.querySelector('#secondary-inner > #related, #below > #related');
     const parent = related?.parentElement || watch.querySelector('#secondary-inner, #secondary');
     if (!parent) return;
-    if (panel?.parentElement === parent && (!related || related.nextElementSibling === panel)) return;
+    if (slot?.parentElement === parent && (!related || related.nextElementSibling === slot)) {
+      scheduleMeasure();
+      return;
+    }
     if (panel) unmount();
     createPanel();
-    if (related) related.after(panel);
-    else parent.append(panel);
+    if (related) related.after(slot);
+    else parent.append(slot);
     relatedBlock = related;
     measurePanel();
     layoutObserver.observe(parent);
     layoutObserver.observe(watch);
+    viewObserver.observe(watch, { attributes: true, attributeFilter: ['theater', 'is-two-columns_'] });
     window.addEventListener('resize', scheduleMeasure);
-    window.addEventListener('scroll', scheduleMeasure, { passive: true });
+    window.addEventListener('scroll', scheduleMeasure, { capture: true, passive: true });
   }
 
   function schedule() {
@@ -138,7 +175,7 @@
   const observer = new MutationObserver((records) => {
     if (!StopItRoutes.videoId(new URL(location.href))) return;
     if (panel && !panel.isConnected) return schedule();
-    if (relatedBlock?.isConnected && relatedBlock.nextElementSibling === panel) return;
+    if (relatedBlock?.isConnected && relatedBlock.nextElementSibling === slot) return;
     if (
       records.some((record) =>
         [...record.addedNodes].some(

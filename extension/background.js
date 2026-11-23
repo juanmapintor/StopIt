@@ -1,4 +1,4 @@
-importScripts('routes.js');
+importScripts('routes.js', 'strict-store.js');
 
 const gateURL = chrome.runtime.getURL('check.html');
 const cacheLimit = 512;
@@ -64,13 +64,10 @@ async function handle(message, tabId) {
 }
 
 chrome.runtime.onMessage.addListener((message, sender, respond) => {
-  if (
-    sender.frameId !== 0 ||
-    !Number.isInteger(sender.tab?.id) ||
-    sender.url?.split(/[?#]/, 1)[0] !== gateURL
-  )
-    return;
-  const task = updates.then(() => handle(message, sender.tab.id));
+  if (!Number.isInteger(sender.tab?.id) || !sender.url) return;
+  const strict = message.type === 'strict';
+  if (!strict && (sender.frameId !== 0 || sender.url.split(/[?#]/, 1)[0] !== gateURL)) return;
+  const task = updates.then(() => strict ? strictRequest(message, sender) : handle(message, sender.tab.id));
   updates = task.catch(() => {});
   task.then(
     (value) => respond({ ok: true, value }),
@@ -80,8 +77,16 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
 });
 
 chrome.tabs.onRemoved.addListener((tabId) => {
-  const task = updates.then(() =>
-    chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: [tabId + 1] })
-  );
+  const task = updates.then(() => Promise.all([
+    chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: [tabId + 1] }),
+    chrome.storage.session.remove('strictHistory:' + tabId)
+  ]));
   updates = task.catch(() => {});
+});
+
+chrome.tabs.onActivated.addListener(async ({ tabId }) => {
+  const { strictSince } = await chrome.storage.local.get('strictSince');
+  if (!strictSince) return;
+  // The tab may still be loading or belong to another site.
+  await chrome.tabs.sendMessage(tabId, { type: 'strict-tab-active' }, { frameId: 0 }).catch(() => {});
 });

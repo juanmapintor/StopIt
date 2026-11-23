@@ -15,21 +15,25 @@ html {
 [data-stopit-path] {
   background: transparent !important;
 }
-[data-stopit-path]:not([data-stopit-grid]) > :not([data-stopit-path]) {
+[data-stopit-path]:not([data-stopit-grid]) > :not([data-stopit-path], [data-stopit-heading]) {
   display: none !important;
 }
 [data-stopit-path]:not([data-stopit-grid]) {
   position: static !important;
-  display: block !important;
   margin: 0 !important;
   padding: 0 !important;
   width: 100% !important;
   min-width: 0 !important;
   max-width: none !important;
   min-height: 0 !important;
-  height: auto !important;
-  overflow: visible !important;
   transform: none !important;
+}
+[data-stopit-path]:not([data-stopit-grid], [data-stopit-section-host]) {
+  display: block !important;
+  height: auto !important;
+}
+[data-stopit-path]:not([data-stopit-grid], [data-stopit-section-host], [data-stopit-scroll-lock]) {
+  overflow: visible !important;
 }
 [data-stopit-grid] {
   display: flex !important;
@@ -103,7 +107,7 @@ html[dark] [data-stopit-grid] {
   line-height: 1.35 !important;
 }
 [data-stopit-grid] [data-stopit-playing]::after {
-  content: 'Reproduciendo';
+  content: '__MSG_nowPlaying__';
   display: block;
   color: var(--yt-spec-text-secondary, GrayText);
   font:
@@ -116,4 +120,9 @@ html[dark] [data-stopit-grid] {
 [data-stopit-grid] ytd-rich-grid-row,
 [data-stopit-grid] ytd-rich-grid-row > #contents {
   display: contents !important;
+}
+
+[data-stopit-grid][data-stopit-strict-grid] > *,
+[data-stopit-grid][data-stopit-strict-grid] [data-stopit-group] {
+  flex-shrink: 0 !important;
 }

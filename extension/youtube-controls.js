@@ -3,7 +3,7 @@
     'ytd-multi-page-menu-renderer[menu-style="multi-page-menu-style-type-notifications"]',
     'ytd-popup-container ytd-notification-section-renderer'
   ].join(', ');
-  StopItPreferences.observeNotifications((show) => {
+  StopItPreferences.observe('showNotifications', (show) => {
     const root = document.documentElement;
     if (!show && root.hasAttribute('data-stopit-show-notifications')) {
       const open = [...document.querySelectorAll(notificationMenu)].some((menu) =>
@@ -14,7 +14,7 @@
         document.querySelector('ytd-notification-topbar-button-renderer button')?.click();
       }
     }
-    root.toggleAttribute('data-stopit-show-notifications', show);
+    root.toggleAttribute('data-stopit-show-notifications', show === true);
   });
 
   const controls = [

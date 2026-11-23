@@ -11,7 +11,7 @@
     target.hostname = 'www.youtube.com';
     const params = target.searchParams;
     const id = videoId(target);
-    if (!StopItMetadata.validId(id)) {
+    if (!StopItRoutes.validId(id)) {
       if (!id && params.get('list')) {
         location.replace('https://www.youtube.com/playlist?list=' + encodeURIComponent(params.get('list')));
         return;
@@ -26,20 +26,13 @@
       return reply.value;
     };
     const cached = await ask({ action: 'lookup' });
-    let kind = cached;
-    if (!kind) {
-      try {
-        kind = (await StopItMetadata.read(id)).kind;
-      } catch {
-        kind = (await StopItMetadata.read(id, 'include')).kind;
-      }
-    }
+    const kind = cached || await StopItMetadata.identify(id);
     await ask({ action: 'verify', kind, cached: Boolean(cached) });
     location.replace(kind === 'short' ? subscriptions : url);
   } catch {
-    document.getElementById('status').textContent = 'No se pudo verificar este video';
+    document.getElementById('status').textContent = chrome.i18n.getMessage('checkFailed');
     const detail = document.getElementById('detail');
-    detail.textContent = 'Podés volver a intentarlo o abrir tus suscripciones.';
+    detail.textContent = chrome.i18n.getMessage('checkFailedDetail');
     detail.hidden = false;
     document.getElementById('actions').hidden = false;
   }

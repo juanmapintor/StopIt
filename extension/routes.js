@@ -6,5 +6,6 @@ globalThis.StopItRoutes = (() => {
     if (!match || ['videoseries', 'live_stream'].includes(match[1])) return null;
     return match[1];
   }
-  return { subscriptions, videoId };
+  const validId = (id) => typeof id === 'string' && /^[\w-]{11}$/.test(id);
+  return { subscriptions, videoId, validId };
 })();

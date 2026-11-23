@@ -11,9 +11,6 @@
     'yt-thumbnail-badge-view-model :is(.ytBadgeShapeText, .yt-badge-shape__text), ytd-thumbnail-overlay-time-status-renderer #text';
   let active = null;
   let timer;
-  let revision = 0;
-  let reading = 0;
-  const waiting = [];
 
   // YouTube sometimes recycles the mounted cards when the user scrolls.
   // Remember their native order so an old live stream is inserted only once.
@@ -39,34 +36,6 @@
     }
   }
 
-  async function readMetadata(id) {
-    if (reading >= 3) await new Promise((resolve) => waiting.push(resolve));
-    else reading++;
-    try {
-      return await StopItMetadata.read(id).catch(() => StopItMetadata.read(id, 'include'));
-    } finally {
-      if (waiting.length) waiting.shift()();
-      else reading--;
-    }
-  }
-
-  function metadata(state, id) {
-    const cached = state.dates.get(id);
-    if (cached && cached.until > Date.now()) return cached.promise;
-    const entry = { until: Infinity };
-    entry.promise = readMetadata(id)
-      .then((data) => {
-        if (data.start && !data.end) entry.until = Date.now() + 60000;
-        return data;
-      })
-      .catch(() => {
-        entry.until = Date.now() + 30000;
-        return null;
-      });
-    state.dates.set(id, entry);
-    return entry.promise;
-  }
-
   function cardType(card) {
     if (card.querySelector('a[href^="/shorts/"], [overlay-style="SHORTS"]')) return 'skip';
     const labels = Array.from(card.querySelectorAll(badgeLabels), (n) => n.textContent.trim()).filter(
@@ -84,8 +53,7 @@
       labels.some((s) => /^(live|live now|en vivo|en directo|directo)$/i.test(s))
     )
       return 'live';
-    // A non-duration thumbnail badge may be a localized live or scheduled badge.
-    return labels.length && !labels.some((s) => /\d\s*:\s*\d/.test(s)) ? 'inspect' : 'ordinary';
+    return 'ordinary';
   }
 
   function liveTile(card, id) {
@@ -96,17 +64,17 @@
     const preview = document.createElement('span');
     preview.className = 'preview';
     const image = document.createElement('img');
-    image.src = 'https://i.ytimg.com/vi/' + id + '/mqdefault.jpg';
     image.alt = '';
     image.loading = 'lazy';
     const badge = document.createElement('span');
     badge.className = 'badge';
-    badge.textContent = 'En vivo';
+    badge.lang = chrome.i18n.getMessage('languageCode');
+    badge.textContent = chrome.i18n.getMessage('liveBadge');
     const title = document.createElement('strong');
     title.textContent =
       card.querySelector('h3 a, #video-title, #video-title-link')?.textContent.trim() ||
       card.querySelector(videoLink)?.getAttribute('aria-label') ||
-      'Ver directo';
+      chrome.i18n.getMessage('watchLive');
     const channel = document.createElement('span');
     channel.className = 'channel';
     channel.textContent = card.querySelector('a[href^="/@"], ytd-channel-name a')?.textContent.trim() || '';
@@ -116,26 +84,11 @@
     return tile;
   }
 
-  // Ordinary uploads already arrive newest first. Only probe the ordinary
-  // videos needed to find the insertion point, rather than fetch every watch page.
-  async function insertionIndex(state, started) {
-    let low = 0,
-      high = state.order.length;
-    while (low < high) {
-      const middle = Math.floor((low + high) / 2);
-      const details = await metadata(state, state.order[middle]);
-      if (!details?.published) return null;
-      if (details.published >= started) low = middle + 1;
-      else high = middle;
-    }
-    return low;
-  }
-
   function setHidden(card, hidden) {
     card.toggleAttribute('data-stopit-hidden', hidden);
   }
 
-  async function applyFeed(state, version) {
+  async function applyFeed(state) {
     const cards = [...state.grid.querySelectorAll(cardTypes)].filter((card) => !card.closest(shelf));
     // Some layouts put broadcasts in a separate Live shelf. Never use a
     // recommendation shelf as a source, even if one of its picks is live.
@@ -151,62 +104,69 @@
     }
     cards.push(...liveShelfCards);
     const mounted = new Map();
-    const inspected = await Promise.all(
-      cards.map(async (card) => {
-        const link = card.querySelector(videoLink);
-        if (!link) return null;
-        const url = new URL(link.href);
-        const id = url.searchParams.get('v') || url.pathname.split('/')[2];
-        if (!StopItMetadata.validId(id)) return null;
-        const type = cardType(card);
-        if (type === 'skip') {
-          setHidden(card, true);
-          return { card, id, hidden: true };
-        }
-        if (liveShelfCards.has(card) && type === 'ordinary') return null;
-        if (type === 'ordinary') return { card, id };
-        // Hide a possibly scheduled or pinned item while reading its exact start.
-        setHidden(card, true);
-        const data = await metadata(state, id);
-        if (!data || data.kind === 'short' || data.upcoming || data.start > Date.now())
-          return { card, id, hidden: true };
-        const started = !data.end && (data.liveNow || type === 'live') ? data.start : null;
-        if (liveShelfCards.has(card) && !started) return null;
-        return { card, id, started };
-      })
-    );
-    if (state !== active || version !== revision) return;
-
-    for (const item of inspected) {
-      if (!item) continue;
-      const { card, id, started } = item;
-      if (started && !state.lives.has(id)) state.lives.set(id, { tile: liveTile(card, id), started });
-      if (!started && state.lives.has(id)) {
-        state.lives.get(id).tile.remove();
-        state.lives.delete(id);
-      }
-      setHidden(card, Boolean(item.hidden || started || mounted.has(id)));
-      if (!item.hidden && !started && !mounted.has(id)) mounted.set(id, card);
-    }
-    // A recycled slot may get its live/upcoming badge after its watch link.
-    for (const item of inspected) {
-      if (item && !mounted.has(item.id)) state.known.delete(item.id);
-    }
-    if (state.order.length !== state.known.size) state.order = state.order.filter((id) => state.known.has(id));
-    mergeWindow(state, [...mounted.keys()]);
-
-    const placements = new Map();
-    const lives = [...state.lives.entries()].sort((a, b) => b[1].started - a[1].started);
-    for (const [id, live] of lives) {
-      const latest = await metadata(state, id);
-      if (state !== active || version !== revision) return;
-      if (!latest || latest.end || latest.kind !== 'video') {
-        live.tile.remove();
-        if (latest?.end) state.lives.delete(id);
+    const inspected = [];
+    const ordinaryIds = [];
+    const projectedIds = new Set();
+    for (const card of cards) {
+      const link = card.querySelector(videoLink);
+      const id = link && StopItRoutes.videoId(new URL(link.href));
+      const title = card.querySelector('h3 a, #video-title, #video-title-link');
+      if (!StopItRoutes.validId(id) || !(title?.textContent.trim() || link.getAttribute('aria-label'))) {
+        // YouTube is still filling this slot, or has just recycled it.
+        card.removeAttribute('data-stopit-group');
+        setHidden(card, false);
         continue;
       }
-      const index = await insertionIndex(state, live.started);
-      if (state !== active || version !== revision) return;
+      const type = cardType(card);
+      const inShelf = liveShelfCards.has(card);
+      const live = type === 'live';
+      if (inShelf && (!live || mounted.has(id) || projectedIds.has(id))) continue;
+      const date = StopItFeedDates.read(card, live, state.dates.get(id));
+      if (date) state.dates.set(id, date);
+      inspected.push({ id, card });
+      // An undated live broadcast keeps its native position and renderer.
+      // Only project a tile when it must move out of a shelf or to a dated slot.
+      const project = live && (inShelf || date);
+      if (project) {
+        projectedIds.add(id);
+        const tile = state.lives.get(id)?.tile || liveTile(card, id);
+        const thumbnail = card.querySelector('img');
+        const src = thumbnail?.currentSrc || thumbnail?.getAttribute('src') || thumbnail?.dataset.thumb;
+        const image = tile.querySelector('img');
+        if (src && src !== image.getAttribute('src')) image.src = src;
+        state.lives.set(id, { tile, started: date?.latest });
+      }
+      const hidden = type === 'skip' || projectedIds.has(id) || mounted.has(id);
+      setHidden(card, hidden);
+      if (!hidden) {
+        mounted.set(id, card);
+        if (!live) ordinaryIds.push(id);
+      }
+    }
+    for (const [id, live] of state.lives) {
+      if (!projectedIds.has(id)) {
+        live.tile.remove();
+        state.lives.delete(id);
+      }
+    }
+    // A recycled slot may get its live/upcoming badge after its watch link.
+    const ordinary = new Set(ordinaryIds);
+    for (const { id } of inspected) {
+      if (!ordinary.has(id)) state.known.delete(id);
+    }
+    if (state.order.length !== state.known.size) state.order = state.order.filter(id => state.known.has(id));
+    mergeWindow(state, ordinaryIds);
+
+    const placements = new Map();
+    const lives = [...state.lives.values()].sort((a, b) =>
+      (b.started ?? Number.MAX_SAFE_INTEGER) - (a.started ?? Number.MAX_SAFE_INTEGER)
+    );
+    for (const live of lives) {
+      let index = 0;
+      if (live.started != null) {
+        index = state.order.findIndex(id => state.dates.get(id)?.latest < live.started);
+        if (index < 0) index = state.order.length;
+      }
       const anchor = mounted.get(state.order[index]);
       const atTail = index === state.order.length && (!state.order.length || mounted.has(state.order.at(-1)));
       if (!anchor && !atTail) {
@@ -226,14 +186,49 @@
         before = tile;
       }
     }
+    if (StopItStrictMode.enabled) {
+      const current = () => state === active && state.grid.isConnected;
+      const loading = setTimeout(() => {
+        if (current() && StopItStrictMode.enabled) state.grid.setAttribute('data-stopit-classifying', '');
+      }, 150);
+      try {
+        await StopItStrictMode.groupFeed({ state, mounted, inspected, current });
+      } catch (error) {
+        if (current() && StopItStrictMode.enabled) {
+          StopItStrictMode.unavailable(state.grid, chrome.i18n.getMessage('strictLoadError'));
+          console.error(error);
+        }
+      } finally {
+        clearTimeout(loading);
+        state.grid.removeAttribute('data-stopit-classifying');
+      }
+      if (!current()) return;
+    }
     globalThis.StopItPanelFeed?.updated(state.grid);
   }
 
   function schedule() {
-    if (!active || timer) return;
-    timer = setTimeout(() => {
+    const state = active;
+    if (!state) return;
+    if (state.running) {
+      state.dirty = true;
+      return;
+    }
+    if (timer) return;
+    timer = setTimeout(async () => {
       timer = null;
-      if (active) applyFeed(active, ++revision).catch(console.error);
+      state.running = true;
+      try {
+        await applyFeed(state);
+      } catch (error) {
+        console.error(error);
+      } finally {
+        state.running = false;
+        if (state === active && state.dirty) {
+          state.dirty = false;
+          schedule();
+        }
+      }
     }, 40);
   }
 
@@ -241,14 +236,20 @@
     if (
       records.some(
         (record) =>
-          record.type !== 'childList' ||
-          [...record.addedNodes, ...record.removedNodes].some(
-            (node) => !node.classList?.contains('stopit-live')
-          )
+          record.type === 'attributes' && ['style', 'aria-valuenow'].includes(record.attributeName)
+            ? StopItStrictMode.enabled && record.target.matches('#progress, [role="progressbar"], [class*="ProgressBar"], [class*="PlaybackProgress"]')
+            : record.type !== 'childList' || [...record.addedNodes, ...record.removedNodes].some(
+                (node) => !node.classList?.contains('stopit-live') && !node.hasAttribute?.('data-stopit-heading')
+              )
       )
     )
       schedule();
   });
+  function observeGrid() {
+    const attributeFilter = ['href', 'overlay-style', 'aria-label', 'datetime', 'content', 'src'];
+    if (StopItStrictMode.enabled) attributeFilter.push('style', 'aria-valuenow');
+    gridObserver.observe(active.grid, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter });
+  }
   const mountObserver = new MutationObserver(findGrid);
   function findGrid() {
     const page = document.querySelector(pageSelector);
@@ -257,13 +258,7 @@
     if (active?.grid === grid) return;
     reset();
     active = { grid, known: new Set(), order: [], dates: new Map(), lives: new Map() };
-    gridObserver.observe(grid, {
-      childList: true,
-      subtree: true,
-      characterData: true,
-      attributes: true,
-      attributeFilter: ['href', 'overlay-style', 'aria-label']
-    });
+    observeGrid();
     schedule();
   }
   function reset() {
@@ -272,11 +267,11 @@
     clearTimeout(timer);
     timer = null;
     if (active) {
+      StopItStrictMode.clear(active.grid);
       for (const live of active.lives.values()) live.tile.remove();
       for (const card of active.grid.querySelectorAll('[data-stopit-hidden]')) setHidden(card, false);
     }
     active = null;
-    revision++;
   }
   function enter() {
     if (active && !active.grid.isConnected) reset();
@@ -288,11 +283,14 @@
     if (!active) mountObserver.observe(document, { childList: true, subtree: true });
   }
   document.addEventListener('yt-navigate-finish', enter);
+  document.addEventListener('stopit-strict-update', () => {
+    if (active) {
+      observeGrid();
+      schedule();
+    }
+  });
   document.addEventListener('yt-page-data-updated', enter);
   navigation.addEventListener('currententrychange', enter);
   window.addEventListener('pageshow', enter);
-  setInterval(() => {
-    if (active?.lives.size && !document.hidden) schedule();
-  }, 60000);
   enter();
 })();

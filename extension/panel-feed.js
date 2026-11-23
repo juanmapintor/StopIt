@@ -64,7 +64,7 @@
       exposeGrid(next);
       markCurrent();
       const hasVideos = [...grid.querySelectorAll(cards)].some((card) => card.getClientRects().length);
-      if (!hasVideos && !grid.querySelector('ytd-continuation-item-renderer')) {
+      if (!hasVideos && !grid.hasAttribute('data-stopit-strict-grid') && !grid.querySelector('[data-stopit-heading], ytd-continuation-item-renderer')) {
         if (!emptyState()) status('empty');
         return;
       }

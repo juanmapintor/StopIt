@@ -1,23 +1,26 @@
-const notifications = document.getElementById('notifications');
 const errorMessage = document.getElementById('error');
 
-StopItPreferences.observeNotifications((visible) => {
-  notifications.checked = visible;
-  notifications.disabled = false;
-}).catch(() => {
-  errorMessage.textContent = 'No se pudieron cargar los ajustes. Volvé a abrir StopIt.';
-});
+for (const input of document.querySelectorAll('[data-preference]')) {
+  const key = input.dataset.preference;
+  let saved = false;
+  StopItPreferences.observe(key, (value) => {
+    saved = Boolean(value);
+    input.checked = saved;
+    input.disabled = false;
+  }).catch(() => {
+    errorMessage.textContent = chrome.i18n.getMessage('settingsLoadError');
+  });
 
-notifications.addEventListener('change', async () => {
-  const visible = notifications.checked;
-  errorMessage.textContent = '';
-  notifications.disabled = true;
-  try {
-    await StopItPreferences.setNotifications(visible);
-  } catch {
-    notifications.checked = !visible;
-    errorMessage.textContent = 'No se pudo guardar el cambio. Intentá de nuevo.';
-  } finally {
-    notifications.disabled = false;
-  }
-});
+  input.addEventListener('change', async () => {
+    errorMessage.textContent = '';
+    input.disabled = true;
+    try {
+      await StopItPreferences.set(key, input.checked);
+    } catch {
+      input.checked = saved;
+      errorMessage.textContent = chrome.i18n.getMessage('settingsSaveError');
+    } finally {
+      input.disabled = false;
+    }
+  });
+}

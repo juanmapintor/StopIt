@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
-import { cp, mkdtemp, rm } from 'node:fs/promises';
+import { cp, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -30,9 +30,13 @@ const dates = {
 };
 const grid = 'ytd-rich-grid-renderer > #contents';
 const reads = new Map();
-let context, profile;
+let context, profile, labels;
 
-function card(id, badge = '12:34') {
+function card(id, badge = '12:34', time) {
+  const isLive = ['LIVE', 'EN DIRECTO'].includes(badge);
+  const date = dates[id]?.[isLive ? 1 : 0];
+  const metadata = time ?? (date ? '<time itemprop="' + (isLive ? 'startDate' : 'datePublished') +
+    '" datetime="' + date + 'T09:00:00Z"></time>' : '');
   return (
     '<ytd-rich-item-renderer data-id="' +
     id +
@@ -43,12 +47,12 @@ function card(id, badge = '12:34') {
     id +
     '">' +
     id +
-    '</a></h3></div></ytd-rich-item-renderer>'
+    '</a></h3>' + metadata + '</div></ytd-rich-item-renderer>'
   );
 }
 function feed() {
   return (
-    '<style>ytd-rich-item-renderer,ytd-rich-section-renderer,ytd-guide-entry-renderer {display:block}</style>' +
+    '<meta charset="utf-8"><style>ytd-rich-item-renderer,ytd-rich-section-renderer,ytd-guide-entry-renderer {display:block}</style>' +
     '<ytd-guide-renderer><ytd-guide-entry-renderer><a><span id="title">Shorts</span></a></ytd-guide-entry-renderer></ytd-guide-renderer>' +
     '<ytd-browse page-subtype="subscriptions"><ytd-rich-grid-renderer><div id="contents">' +
     '<ytd-rich-section-renderer id="header"><a href="/feed/channels">Mis canales</a></ytd-rich-section-renderer>' +
@@ -105,6 +109,11 @@ before(async () => {
     ignoreDefaultArgs: ['--disable-extensions'],
     args: ['--load-extension=' + unpacked, '--disable-extensions-except=' + unpacked]
   });
+  const worker = context.serviceWorkers()[0] || await context.waitForEvent('serviceworker');
+  const uiLanguage = await worker.evaluate(() => chrome.i18n.getUILanguage());
+  const language = uiLanguage.split('-')[0] === 'es' ? 'es' : 'en';
+  const catalog = JSON.parse(await readFile(path.join(extension, '_locales', language, 'messages.json'), 'utf8'));
+  labels = Object.fromEntries(Object.entries(catalog).map(([key, entry]) => [key, entry.message]));
   await context.route('https://www.youtube.com/**', async (route) => {
     const url = new URL(route.request().url());
     let body;
@@ -165,8 +174,13 @@ test('un enlace externo abre un video con el mismo feed de Inicio y conserva el 
     assert.equal(await panel.count(), 1);
     const current = frame.locator('[data-stopit-playing] a[aria-current="true"]');
     assert.equal(await current.getAttribute('href'), '/watch?v=' + ids.replay);
+    const playingLabel = await frame.locator('[data-stopit-playing]').evaluate(el => getComputedStyle(el, '::after').content);
+    assert.equal(playingLabel, JSON.stringify(labels.nowPlaying));
+    assert.equal(await panel.getAttribute('aria-label'), labels.subscriptions);
+    assert.equal(await panel.locator('iframe').getAttribute('title'), labels.subscriptionVideos);
     await open(home, youtube + '/', subscriptions);
     await home.waitForSelector('.stopit-live');
+    assert.equal(await home.locator('.stopit-live .badge').first().textContent(), labels.liveBadge);
     assert.deepEqual(await visibleOrder(frame), await visibleOrder(home));
     // Model the native continuation: it adds the next batch only when the
     // user can scroll the sentinel into view inside the sidebar viewport.
@@ -202,6 +216,31 @@ test('un enlace externo abre un video con el mismo feed de Inicio y conserva el 
   }
 });
 
+test('Chrome elige el catálogo de los ajustes y usa inglés como idioma predeterminado', async () => {
+  const catalogs = await Promise.all(['en', 'es'].map(async lang =>
+    JSON.parse(await readFile(path.join(extension, '_locales', lang, 'messages.json'), 'utf8'))
+  ));
+  assert.deepEqual(Object.keys(catalogs[0]).sort(), Object.keys(catalogs[1]).sort());
+  const worker = await strictWorker();
+  const manifest = await worker.evaluate(() => chrome.runtime.getManifest());
+  assert.equal(manifest.default_locale, 'en');
+  assert.equal(manifest.name, labels.extensionName);
+  assert.equal(manifest.description, labels.extensionDescription);
+  assert.equal(await worker.evaluate(() => chrome.action.getTitle({})), labels.settingsTitle);
+  const page = await context.newPage();
+  try {
+    await page.goto(await worker.evaluate(() => chrome.runtime.getURL('settings.html')));
+    assert.equal(await page.title(), labels.settingsTitle);
+    assert.equal(await page.locator('html').getAttribute('lang'), labels.languageCode);
+    assert.equal(await page.getByRole('heading').textContent(), labels.settingsTitle);
+    for (const label of ['showNotifications', 'strictMode']) {
+      assert.ok(await page.getByRole('switch', { name: labels[label], exact: true }).isVisible());
+    }
+  } finally {
+    await page.close();
+  }
+});
+
 test('el panel centra la carga, ajusta la altura al modo de vista y contiene el hover de cada fila', async () => {
   const page = await context.newPage();
   const { promise: loading, resolve: showFeed } = Promise.withResolvers();
@@ -223,7 +262,7 @@ test('el panel centra la carga, ajusta la altura al modo de vista y contiene el 
     await atViewportBottom();
     assert.equal(await panel.getByRole('heading').count(), 0);
     assert.equal(await panel.getByRole('link').count(), 0);
-    assert.match(await status.textContent(), /Cargando suscripciones/);
+    assert.equal(await status.textContent(), labels.panelLoading);
     assert.equal(await status.evaluate((p) => getComputedStyle(p).placeItems), 'center');
     assert.deepEqual(await status.boundingBox(), await panel.boundingBox());
     assert.equal(await status.locator('span').evaluate((span) => getComputedStyle(span).clipPath), 'inset(50%)');
@@ -246,7 +285,8 @@ test('el panel centra la carga, ajusta la altura al modo de vista y contiene el 
     });
     await atViewportBottom();
     await page.locator('ytd-watch-flexy').evaluate((watch) => watch.setAttribute('theater', ''));
-    assert.equal((await iframe.boundingBox()).height, 900);
+    await atViewportBottom();
+    assert.ok((await iframe.boundingBox()).height > 900);
     await page.locator('ytd-watch-flexy').evaluate((watch) => watch.removeAttribute('theater'));
     await atViewportBottom();
 
@@ -273,6 +313,66 @@ test('el panel centra la carga, ajusta la altura al modo de vista y contiene el 
     }
   } finally {
     showFeed();
+    await page.close();
+  }
+});
+
+test('el panel acompaña los comentarios y llena el espacio visible también en modo cine', async () => {
+  const page = await context.newPage();
+  const target = youtube + '/watch?v=' + ids.newest;
+  const layout = `<style>
+    * {box-sizing:border-box} body {margin:0;padding-top:56px}
+    #masthead-container {position:fixed;inset:0 0 auto;height:56px;background:#111;z-index:10}
+    ytd-watch-flexy {display:block} #columns {display:flex;align-items:flex-start;gap:16px;padding:16px}
+    #primary {flex:1;min-width:0;height:4400px} #secondary {width:32%}
+    #cinema {display:none} [theater] #cinema {display:block;height:75vh}
+    [theater] #columns {transform:translateZ(0);border:2px solid transparent}
+    #playlist {height:40px} #chat {height:60px}
+    @media (max-width:700px) {#columns {display:block} #secondary {width:100%}}
+  </style><div id="masthead-container"></div>`;
+  const body = '<!doctype html>' + watchPage(ids.newest)
+    .replace('<h1>Player</h1><button>Play</button>', layout)
+    .replace('<ytd-watch-flexy>', '<ytd-watch-flexy><div id="cinema"></div><div id="columns"><main id="primary">Comentarios</main>')
+    .replace('</ytd-watch-flexy>', '</div></ytd-watch-flexy>');
+  let feedLoads = 0;
+  await page.route(target, route => route.fulfill({ contentType: 'text/html', body }));
+  await page.route('**/feed/subscriptions?stopit-panel=1', route => {
+    feedLoads++;
+    return route.fulfill({ contentType: 'text/html', body: feed() });
+  });
+  const checkBounds = pinned => page.waitForFunction(pinned => {
+    const iframe = document.querySelector('.stopit-watch-panel iframe').getBoundingClientRect();
+    const column = document.querySelector('#secondary').getBoundingClientRect();
+    const bar = document.querySelector('#masthead-container').getBoundingClientRect();
+    const top = pinned ? bar.bottom : document.querySelector('#chat').getBoundingClientRect().bottom;
+    return Math.abs(iframe.top - top) <= 1 && Math.abs(iframe.bottom - innerHeight) <= 1 &&
+      Math.abs(iframe.left - column.left) <= 1 && Math.abs(iframe.width - column.width) <= 1;
+  }, pinned, { timeout: 3000 });
+  try {
+    await page.setViewportSize({ width: 1440, height: 1200 });
+    await open(page, target, target);
+    await page.locator('.stopit-watch-panel iframe[data-stopit-state="ready"]').waitFor();
+    for (const theater of [false, true]) {
+      await page.evaluate(theater => {
+        window.scrollTo(0, 0);
+        document.querySelector('ytd-watch-flexy').toggleAttribute('theater', theater);
+      }, theater);
+      await checkBounds(false);
+      for (const y of [1300, 2750]) {
+        await page.evaluate(y => window.scrollTo(0, y), y);
+        await checkBounds(true);
+      }
+    }
+    await page.setViewportSize({ width: 1100, height: 1450 });
+    await page.locator('#masthead-container').evaluate(el => { el.style.height = '72px'; });
+    await checkBounds(true);
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await checkBounds(false);
+    assert.equal(feedLoads, 1);
+    await page.setViewportSize({ width: 640, height: 760 });
+    await page.evaluate(() => window.scrollTo(0, 1600));
+    await page.waitForFunction(() => document.querySelector('.stopit-watch-panel').getBoundingClientRect().top > innerHeight);
+  } finally {
     await page.close();
   }
 });
@@ -317,6 +417,7 @@ test('el fondo del video se ve a través del panel en ambos temas', async () => 
 
 test('Inicio filtra el feed y coloca cada directo por hora de inicio al cargar más videos', async () => {
   const page = await context.newPage();
+  const before = new Map(reads);
   try {
     await open(page, youtube + '/?hl=es', subscriptions);
     await page.waitForSelector('.stopit-live', { state: 'attached' });
@@ -345,6 +446,7 @@ test('Inicio filtra el feed y coloca cada directo por hora de inicio al cargar m
       ids.older,
       ids.longLive
     ]);
+    assert.deepEqual(reads, before);
   } finally {
     await page.close();
   }
@@ -400,12 +502,35 @@ test('ofrece reintentar si YouTube no identifica el contenido', async () => {
   const page = await context.newPage();
   try {
     await page.goto(youtube + '/watch?v=' + ids.unknown, { waitUntil: 'commit' });
-    await page.getByRole('button', { name: 'Reintentar' }).waitFor({ timeout: 10000 });
+    await page.getByRole('button', { name: labels.retry }).waitFor({ timeout: 10000 });
     assert.equal(new URL(page.url()).protocol, 'chrome-extension:');
-    await page.getByRole('link', { name: 'Ir a Suscripciones' }).click();
+    assert.equal(await page.title(), labels.checkTitle);
+    assert.equal(await page.locator('html').getAttribute('lang'), labels.languageCode);
+    assert.equal(await page.getByRole('status').textContent(), labels.checkFailed);
+    assert.equal(await page.locator('#detail').textContent(), labels.checkFailedDetail);
+    await page.getByRole('link', { name: labels.goToSubscriptions }).click();
     await page.waitForURL(subscriptions);
   } finally {
     await page.close();
+  }
+});
+
+test('una apertura explícita respeta el 429 y espera a que el usuario reintente', async () => {
+  const page = await context.newPage();
+  let requests = 0;
+  const url = youtube + '/watch?v=LLLLLLLLLLL';
+  const limited = route => {
+    requests++;
+    return route.fulfill({ status: 429 });
+  };
+  await context.route(url, limited);
+  try {
+    await page.goto(url, { waitUntil: 'commit' });
+    await page.getByRole('button', { name: labels.retry }).waitFor();
+    assert.equal(requests, 1);
+  } finally {
+    await page.close();
+    await context.unroute(url, limited);
   }
 });
 
@@ -423,11 +548,11 @@ test('si falla el feed se puede reintentar sin perder el video ni mostrar recome
     const target = youtube + '/watch?v=' + ids.newest;
     await open(page, target, target);
     const panel = page.locator('.stopit-watch-panel');
-    const retry = panel.getByRole('button', { name: 'Reintentar' });
+    const retry = panel.getByRole('button', { name: labels.retry });
     await retry.waitFor({ timeout: 17000 });
     assert.equal(await page.locator('#related').isVisible(), false);
     assert.equal(
-      await panel.getByRole('link', { name: 'Suscripciones' }).getAttribute('href'),
+      await panel.getByRole('link', { name: labels.openSubscriptions }).getAttribute('href'),
       subscriptions
     );
     working = true;
@@ -578,7 +703,7 @@ test('la campana y el panel respetan el ajuste guardado en todas las pestañas',
       assert.equal(await page.locator('#inbox').isVisible(), false);
     }
     await settings.goto(settingsUrl);
-    const toggle = settings.getByRole('switch', { name: 'Mostrar notificaciones' });
+    const toggle = settings.getByRole('switch', { name: labels.showNotifications });
     assert.equal(await toggle.isChecked(), false);
     await toggle.check();
     for (const page of pages) {
@@ -603,5 +728,552 @@ test('la campana y el panel respetan el ajuste guardado en todas las pestañas',
   } finally {
     await worker.evaluate(() => chrome.storage.local.remove('showNotifications'));
     await Promise.all([...pages, settings].map((page) => page.close()));
+  }
+});
+
+const strictAccount = '123||456';
+const sinceJan2 = Date.parse('2025-01-02T12:00:00Z');
+
+function signedInPage(html, account = strictAccount) {
+  return '<script>window.ytcfg = {set() {}}; ytcfg.set(' +
+    JSON.stringify({ LOGGED_IN: true, DATASYNC_ID: account }) + ');</script>' + html;
+}
+
+async function strictWorker() {
+  return context.serviceWorkers()[0] || context.waitForEvent('serviceworker');
+}
+
+async function resetStrict(worker) {
+  await worker.evaluate(async () => {
+    if (globalThis.realNow) Date.now = globalThis.realNow;
+    const data = await chrome.storage.local.get(null);
+    await chrome.storage.local.remove(Object.keys(data).filter((key) => key.startsWith('strict')));
+  });
+}
+
+async function setWorkerTime(worker, time) {
+  await worker.evaluate((ms) => {
+    globalThis.realNow ??= Date.now;
+    Date.now = () => ms;
+  }, time);
+}
+
+test('Modo estricto agrupa las dos vistas por fecha y progreso y se puede desactivar en caliente', async () => {
+  const worker = await strictWorker();
+  const home = await context.newPage();
+  const settings = await context.newPage();
+  let account = strictAccount;
+  const withProgress = feed().replace(card(ids.replay), card(ids.replay).replace('<h3>', '<div class="ytThumbnailOverlayProgressBarHostWatchedProgressBarSegment" style="width:12%"></div><h3>'));
+  await home.route('**/feed/subscriptions*', (route) => route.fulfill({ contentType: 'text/html', body: signedInPage(withProgress, account) }));
+  const visitKey = 'strictVisit:' + strictAccount;
+  try {
+    await home.goto(subscriptions);
+    await home.locator('.stopit-live').first().waitFor();
+    await settings.goto(await worker.evaluate(() => chrome.runtime.getURL('settings.html')));
+    const toggle = settings.getByRole('switch', { name: labels.strictMode });
+    assert.equal(await toggle.isChecked(), false);
+    assert.equal(await home.locator('[data-stopit-heading]').count(), 0);
+    await toggle.check();
+    await home.bringToFront();
+    const fresh = home.getByRole('button', { name: labels.sectionNew });
+    await fresh.waitFor();
+    assert.ok(await fresh.isDisabled());
+    const older = home.getByRole('button', { name: labels.sectionOlder });
+    const seen = home.getByRole('button', { name: labels.sectionWatched });
+    assert.equal(await older.getAttribute('aria-expanded'), 'true');
+    assert.equal(await seen.getAttribute('aria-expanded'), 'false');
+    await older.click();
+    assert.deepEqual(await visibleOrder(home), [ids.newest, ids.live, ids.old, ids.longLive]);
+    await seen.click();
+    assert.equal(await older.getAttribute('aria-expanded'), 'false');
+    assert.deepEqual(await visibleOrder(home), [ids.replay]);
+    assert.equal(await home.locator('[data-stopit-group="seen"] h3 a').textContent(), ids.replay);
+    await toggle.uncheck();
+    await home.locator('[data-stopit-heading]').first().waitFor({ state: 'detached' });
+    assert.deepEqual(await visibleOrder(home), [ids.newest, ids.live, ids.replay, ids.old, ids.longLive]);
+
+    await worker.evaluate((since) => chrome.storage.local.set({ strictSince: since }), sinceJan2);
+    await home.bringToFront();
+    const newLinks = home.locator('[data-stopit-group="new"]:visible a');
+    await newLinks.first().waitFor();
+    assert.deepEqual(await newLinks.evaluateAll(as => as.map(a => new URL(a.href).searchParams.get('v'))), [ids.newest, ids.live]);
+    assert.equal(await home.locator('[data-stopit-group="older"]:visible').count(), 0);
+    assert.equal(await home.locator('ytd-continuation-item-renderer').isVisible(), false);
+    await fresh.click();
+    const sentinel = home.locator('ytd-continuation-item-renderer');
+    assert.equal(await older.getAttribute('aria-expanded'), 'true');
+    await sentinel.evaluate(el => { el.style.cssText = 'display:block;height:20px'; });
+    assert.ok(await sentinel.isVisible());
+    await sentinel.evaluate((el, html) => el.insertAdjacentHTML('beforebegin', html), card(ids.older));
+    await home.locator('[data-id="' + ids.older + '"][data-stopit-group="older"]').waitFor();
+    const visit = await worker.evaluate(async key => (await chrome.storage.local.get(key))[key], visitKey);
+    assert.equal(visit.cutoff, sinceJan2);
+
+    await fresh.click();
+    await home.getByRole('link', { name: ids.newest, exact: true }).click();
+    const panel = home.frameLocator('.stopit-watch-panel iframe');
+    await panel.locator('[data-stopit-heading="new"]').waitFor();
+    assert.equal(await panel.getByRole('button', { name: labels.sectionOlder }).getAttribute('aria-expanded'), 'false');
+    assert.deepEqual(new Set(await panel.locator('[data-stopit-group="new"] a').evaluateAll(as => as.map(a => new URL(a.href).searchParams.get('v')))), new Set([ids.newest, ids.live]));
+    assert.deepEqual(await worker.evaluate(async key => (await chrome.storage.local.get(key))[key], visitKey), visit);
+
+    account = 'other||account';
+    await home.goto(subscriptions);
+    await home.locator('[data-stopit-strict-grid]').waitFor();
+    const seenB = await worker.evaluate(() => chrome.storage.local.get('strictSeen:other||account:DDDDDDDDDDD'));
+    assert.ok(seenB['strictSeen:other||account:DDDDDDDDDDD']); // Also has native progress in this account.
+    await home.locator('[data-id="' + ids.newest + '"][data-stopit-group="new"]').waitFor();
+  } finally {
+    await Promise.all([home.close(), settings.close()]);
+    await resetStrict(worker);
+  }
+});
+
+test('las visitas tienen cinco minutos de margen y Atrás recupera su corte incluso después de otra visita', async () => {
+  const worker = await strictWorker();
+  const home = await context.newPage();
+  let healthy = true;
+  await home.route('**/feed/subscriptions*', route => route.fulfill({ contentType: 'text/html',
+    body: signedInPage(healthy ? feed() : '<ytd-browse page-subtype="subscriptions">Error</ytd-browse>') }));
+  const key = 'strictVisit:' + strictAccount;
+  const visited = () => worker.evaluate(async key => (await chrome.storage.local.get(key))[key], key);
+  const start = Date.parse('2025-01-04T12:00:00Z');
+  try {
+    await worker.evaluate(since => chrome.storage.local.set({ strictSince: since }), sinceJan2);
+    await setWorkerTime(worker, start);
+    await home.goto(subscriptions);
+    await home.locator('[data-stopit-strict-grid]').waitFor();
+    for (const minutes of [2, 5]) {
+      await setWorkerTime(worker, start + minutes * 60_000);
+      await home.reload();
+      await home.locator('[data-stopit-strict-grid]').waitFor();
+      assert.equal((await visited()).cutoff, sinceJan2);
+      assert.equal((await visited()).lastVisit, start + minutes * 60_000);
+    }
+    await setWorkerTime(worker, start + 45 * 60_000);
+    await home.getByRole('link', { name: ids.newest, exact: true }).click();
+    const panel = home.frameLocator('.stopit-watch-panel iframe');
+    await panel.locator('[data-stopit-group="new"][data-id="' + ids.replay + '"]').waitFor();
+    assert.equal((await visited()).lastVisit, start + 5 * 60_000);
+    const other = await context.newPage();
+    try {
+      await other.route('**/feed/subscriptions*', route => route.fulfill({ contentType: 'text/html', body: signedInPage(feed()) }));
+      await other.goto(subscriptions);
+      await other.locator('[data-stopit-strict-grid]').waitFor();
+      assert.equal((await visited()).cutoff, start + 5 * 60_000);
+    } finally {
+      await other.close();
+    }
+    const latest = await visited();
+    await home.goBack();
+    await home.locator('[data-stopit-group="new"][data-id="' + ids.replay + '"]').waitFor();
+    assert.deepEqual(await visited(), latest);
+    healthy = false;
+    await setWorkerTime(worker, start + 60 * 60_000);
+    await home.reload();
+    assert.deepEqual(await visited(), latest);
+    healthy = true;
+    await home.reload();
+    await home.locator('[data-stopit-strict-grid]').waitFor();
+    assert.equal((await visited()).cutoff, latest.lastVisit);
+    assert.equal(await home.locator('[data-id="' + ids.replay + '"]').getAttribute('data-stopit-group'), 'older');
+  } finally {
+    await home.close();
+    await resetStrict(worker);
+  }
+});
+
+test('solo la pestaña activa con un reproductor cargado marca Vistos, también desde un enlace externo', async () => {
+  const worker = await strictWorker();
+  const home = await context.newPage();
+  let account = strictAccount;
+  const routes = '**/watch?*';
+  const watch = async (route) => {
+    if (!route.request().isNavigationRequest()) return route.fallback();
+    const id = new URL(route.request().url()).searchParams.get('v');
+    await route.fulfill({ contentType: 'text/html', body: signedInPage(watchPage(id) +
+      '<div id="movie_player"><video preload="metadata"></video></div>', account) });
+  };
+  const seenKey = 'strictSeen:' + strictAccount + ':' + ids.newest;
+  const wasOpened = () => worker.evaluate(async key => (await chrome.storage.local.get(key))[key], seenKey);
+  await context.route(routes, watch);
+  await home.route('**/feed/subscriptions*', route => route.fulfill({ contentType: 'text/html', body: signedInPage(feed(), account) }));
+  let videoPage;
+  try {
+    await worker.evaluate(since => chrome.storage.local.set({ strictSince: since }), sinceJan2);
+    await home.goto(subscriptions);
+    await home.locator('[data-stopit-strict-grid]').waitFor();
+    const pending = context.waitForEvent('page');
+    const tabId = await worker.evaluate(async url => (await chrome.tabs.create({ url, active: false })).id, youtube + '/watch?v=' + ids.newest);
+    videoPage = await pending;
+    const player = videoPage.locator('#movie_player video');
+    await player.waitFor({ state: 'attached' });
+    // Loading a real media file in a background watch tab must not count as an opening.
+    const load = () => player.evaluate(async el => {
+      const ready = new Promise(resolve => el.addEventListener('loadedmetadata', resolve, { once: true }));
+      el.src = 'data:audio/wav;base64,UklGRjQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YRAAAACAgICAgICAgICAgICAgICA';
+      await ready;
+    });
+    await load();
+    assert.equal(await wasOpened(), undefined);
+    await worker.evaluate(id => chrome.tabs.update(id, { active: true }), tabId);
+    await videoPage.bringToFront();
+    await home.locator('[data-id="' + ids.newest + '"][data-stopit-group="seen"]').waitFor({ state: 'attached', timeout: 5000 });
+    assert.equal(await wasOpened(), true);
+    await home.bringToFront();
+    await home.getByRole('button', { name: labels.sectionWatched }).click();
+    await home.locator('[data-id="' + ids.newest + '"][data-stopit-group="seen"]').waitFor();
+    account = 'second||account';
+    await home.reload();
+    await home.locator('[data-id="' + ids.newest + '"][data-stopit-group="new"]').waitFor();
+    await worker.evaluate(() => chrome.storage.local.set({ strictSince: 0 }));
+    await videoPage.bringToFront();
+    await videoPage.goto(youtube + '/watch?v=' + ids.replay, { waitUntil: 'commit' });
+    await player.waitFor({ state: 'attached' });
+    await load();
+    assert.deepEqual(await worker.evaluate(() => chrome.storage.local.get('strictSeen:second||account:DDDDDDDDDDD')), {});
+  } finally {
+    await videoPage?.close();
+    await home.close();
+    await context.unroute(routes, watch);
+    await resetStrict(worker);
+  }
+});
+
+test('la clasificación usa únicamente las tarjetas cargadas y respeta los cambios de progreso', async () => {
+  const worker = await strictWorker();
+  const page = await context.newPage();
+  const key = 'strictVisit:' + strictAccount;
+  const single = '<ytd-browse page-subtype="subscriptions"><ytd-rich-grid-renderer><div id="contents">' +
+    card(ids.newest).replace('<h3>', '<div class="ytThumbnailOverlayProgressBarHostProgressBarActiveSegment" style="width:20%"></div><h3>') +
+    '</div></ytd-rich-grid-renderer></ytd-browse>';
+  const watchRequests = [];
+  try {
+    await worker.evaluate(since => chrome.storage.local.set({ strictSince: since }), sinceJan2);
+    await page.route('**/feed/subscriptions*', route => route.fulfill({ contentType: 'text/html', body: signedInPage(single) }));
+    await page.route('**/watch?*', route => {
+      watchRequests.push(route.request().url());
+      return route.fulfill({ status: 429 });
+    });
+    await page.goto(subscriptions);
+    const tile = page.locator('[data-id="' + ids.newest + '"]');
+    await page.locator('[data-stopit-group="new"]').waitFor();
+    await tile.evaluate(el => el.insertAdjacentHTML('beforeend', '<ytd-thumbnail-overlay-resume-playback-renderer><div id="progress" style="width:0%"></div></ytd-thumbnail-overlay-resume-playback-renderer>'));
+    assert.equal(await tile.getAttribute('data-stopit-group'), 'new');
+    await tile.locator('#progress').evaluate(el => { el.style.width = '1%'; });
+    await page.locator('[data-stopit-group="seen"]').waitFor({ state: 'attached' });
+    assert.equal(await tile.isVisible(), false);
+    assert.ok(await page.getByRole('button', { name: labels.sectionNew }).isDisabled());
+    assert.deepEqual(await page.locator('[data-stopit-heading] [aria-expanded="true"]').allTextContents(), [labels.sectionOlder]);
+    await tile.evaluate((el, html) => el.insertAdjacentHTML('afterend', html), card(ids.older));
+    await page.locator('[data-id="' + ids.older + '"][data-stopit-group="older"]').waitFor({ state: 'attached' });
+    assert.ok((await worker.evaluate(key => chrome.storage.local.get(key), key))[key]);
+    const older = page.getByRole('button', { name: labels.sectionOlder });
+    await older.click();
+    await tile.evaluate((el, html) => el.insertAdjacentHTML('afterend', html), card(ids.replay));
+    await page.locator('[data-id="' + ids.replay + '"][data-stopit-group="new"]').waitFor({ state: 'attached' });
+    assert.ok(await page.getByRole('button', { name: labels.sectionNew }).isEnabled());
+    assert.equal(await older.getAttribute('aria-expanded'), 'true');
+    assert.deepEqual(watchRequests, []);
+  } finally {
+    await page.close();
+    await resetStrict(worker);
+  }
+});
+
+test('Inicio y el panel clasifican lotes nativos sin consultar videos aunque /watch responda 429', async () => {
+  const worker = await strictWorker();
+  const home = await context.newPage();
+  const watch = await context.newPage();
+  const fetches = [];
+  const errors = [];
+  const text = value => '<span class="yt-content-metadata-view-model__metadata-text">' + value + '</span>';
+  const initial = feed().replace(card(ids.newest), card(ids.newest, '12:34', text('hace 11 min')))
+    .replace(card(ids.replay), card(ids.replay, '12:34', text('Streamed 5 hours ago')))
+    .replace(card(ids.old), card(ids.old, '12:34', text('hace una semana')));
+  const batch = card(ids.older, '10:00', text('2 weeks ago')) + card(ids.unknown, '08:15', '');
+  // An external video still goes through the deliberate-navigation Shorts check.
+  const target = 'VVVVVVVVVVV';
+  const check = async route => {
+    const request = route.request();
+    const id = new URL(request.url()).searchParams.get('v');
+    if (id === target) return route.fulfill({ contentType: 'text/html', body: watchPage(ids.replay).replaceAll(ids.replay, target) });
+    fetches.push(request.url());
+    return route.fulfill({ status: 429 });
+  };
+  await context.route('**/watch?*', check);
+  for (const page of [home, watch]) {
+    page.on('pageerror', error => errors.push(error.message));
+    await page.route('**/feed/subscriptions*', route => route.fulfill({ contentType: 'text/html', body: signedInPage(initial) }));
+  }
+  try {
+    await worker.evaluate(() => chrome.storage.local.set({ strictSince: Date.now() - 2 * 3_600_000 }));
+    await watch.goto(youtube + '/watch?v=' + target, { waitUntil: 'commit' });
+    await watch.locator('iframe[data-stopit-state="ready"]').waitFor();
+    await home.goto(subscriptions);
+    const panel = watch.frameLocator('.stopit-watch-panel iframe');
+    for (const scope of [home, panel]) {
+      await scope.locator('[data-stopit-group="new"][data-id="' + ids.newest + '"]').waitFor();
+      await scope.getByRole('button', { name: labels.sectionOlder }).click();
+      await scope.locator('[data-stopit-group="older"][data-id="' + ids.replay + '"]').waitFor();
+      const sentinel = scope.locator('ytd-continuation-item-renderer');
+      await sentinel.evaluate((el, batch) => {
+        window.nativeBatch = document.createRange().createContextualFragment(batch);
+        window.nativeFirst = window.nativeBatch.firstElementChild;
+        el.before(window.nativeBatch);
+      }, batch);
+      await scope.locator('[data-id="' + ids.older + '"][data-stopit-group="older"]').waitFor();
+      assert.ok(await sentinel.evaluate(el => el.parentElement.contains(window.nativeFirst)));
+      // YouTube can hydrate a date after inserting the item or recycle the slot.
+      await scope.locator('[data-id="' + ids.unknown + '"]').evaluate((el, html) => el.insertAdjacentHTML('beforeend', html), text('15 minutes ago'));
+      await scope.locator('[data-id="' + ids.unknown + '"][data-stopit-group="new"]').waitFor({ state: 'attached' });
+      assert.equal(await scope.getByRole('button', { name: labels.sectionOlder }).getAttribute('aria-expanded'), 'true');
+      await scope.getByRole('button', { name: labels.sectionNew }).click();
+      await scope.locator('[data-id="' + ids.unknown + '"][data-stopit-group="new"]').waitFor();
+    }
+    assert.deepEqual(fetches, []);
+    assert.deepEqual(errors, []);
+  } finally {
+    await Promise.all([home.close(), watch.close()]);
+    await context.unroute('**/watch?*', check);
+    await resetStrict(worker);
+  }
+});
+
+test('el orden nativo desempata fechas redondeadas después de una visita y de una recarga rápida', async () => {
+  const worker = await strictWorker();
+  const page = await context.newPage();
+  const label = '<div id="metadata-line"><span>hace 1 h</span></div>';
+  const top = card(ids.newest, '09:00', label);
+  const old = card(ids.old, '08:00', label);
+  let rows = old;
+  const start = Date.now();
+  const group = (id, name) => page.locator('[data-id="' + id + '"][data-stopit-group="' + name + '"]');
+  await page.route('**/feed/subscriptions*', route => route.fulfill({ contentType: 'text/html',
+    body: signedInPage('<ytd-browse page-subtype="subscriptions"><ytd-rich-grid-renderer><div id="contents">' +
+      rows + '</div></ytd-rich-grid-renderer></ytd-browse>') }));
+  try {
+    await worker.evaluate(since => chrome.storage.local.set({ strictSince: since }), start - 2 * 3_600_000);
+    await setWorkerTime(worker, start - 70 * 60_000);
+    await page.goto(subscriptions);
+    await page.locator('[data-stopit-strict-grid]').waitFor();
+    await setWorkerTime(worker, start);
+    rows = top + old;
+    await page.reload();
+    await group(ids.newest, 'new').waitFor();
+    await group(ids.old, 'older').waitFor({ state: 'attached' });
+    await setWorkerTime(worker, start + 2 * 60_000);
+    await page.reload();
+    await group(ids.newest, 'new').waitFor();
+    await group(ids.old, 'older').waitFor({ state: 'attached' });
+  } finally {
+    await page.close();
+    await resetStrict(worker);
+  }
+});
+
+test('el acordeón mantiene sus tres controles visibles y recuerda el scroll de cada sección en Inicio y el panel', async () => {
+  const worker = await strictWorker();
+  const page = await context.newPage();
+  const rows = Array.from({ length: 48 }, (_, n) => {
+    const time = n < 12 ? '2025-01-03' : '2025-01-01';
+    const progress = n >= 30 ? '<ytd-thumbnail-overlay-resume-playback-renderer><i id="progress" style="width:20%"></i></ytd-thumbnail-overlay-resume-playback-renderer>' : '';
+    return card(String(n).padStart(11, '0'), '09:15', '<time datetime="' + time + 'T12:00:00Z"></time>' + progress);
+  }).join('');
+  const html = '<!doctype html>' + signedInPage('<style>body{margin:0}header{height:64px}ytd-browse,ytd-rich-grid-renderer{display:block}' +
+    'ytd-rich-item-renderer{display:block;min-height:152px;width:33%}#contents{margin-block:4px}' +
+    'ytd-continuation-item-renderer{display:block;height:20px}</style><header></header><ytd-browse page-subtype="subscriptions">' +
+    '<ytd-rich-grid-renderer><div id="contents">' + rows + '<ytd-continuation-item-renderer></ytd-continuation-item-renderer>' +
+    '</div></ytd-rich-grid-renderer></ytd-browse>');
+  await page.route('**/feed/subscriptions*', route => route.fulfill({ contentType: 'text/html', body: html }));
+  try {
+    await worker.evaluate(since => chrome.storage.local.set({ strictSince: since }), sinceJan2);
+    for (const sidebar of [false, true]) {
+      await page.setViewportSize({ width: sidebar ? 760 : 1000, height: 640 });
+      if (sidebar) {
+        await page.goto(youtube + '/watch?v=' + ids.replay, { waitUntil: 'commit' });
+        await page.locator('iframe[data-stopit-state="ready"]').waitFor();
+      } else {
+        await page.goto(subscriptions);
+      }
+      const scope = sidebar ? page.frameLocator('.stopit-watch-panel iframe') : page;
+      const list = scope.locator('[data-stopit-strict-grid]');
+      const older = scope.getByRole('button', { name: labels.sectionOlder });
+      const seen = scope.getByRole('button', { name: labels.sectionWatched });
+      await older.click();
+      const bounds = () => list.evaluate(el => {
+        const heads = [...document.querySelectorAll('[data-stopit-heading]')].map(h => h.getBoundingClientRect());
+        const rect = el.getBoundingClientRect();
+        return { heads: heads.map(h => h.top), first: heads[0].top, above: heads[1].bottom,
+          below: heads[2].top, bottom: heads[2].bottom, listTop: rect.top, listBottom: rect.bottom,
+          height: innerHeight, documentScroll: window.scrollY };
+      });
+      const start = await bounds();
+      assert.ok(start.first >= 0 && start.above <= start.listTop && start.listBottom <= start.below);
+      assert.ok(Math.abs(start.height - start.bottom) <= 1, JSON.stringify(start));
+      await list.hover();
+      await page.mouse.wheel(0, 450);
+      const frame = sidebar ? page.frames().find(f => f.url().includes('stopit-panel=1')) : page.mainFrame();
+      await frame.waitForFunction(() => document.querySelector('[data-stopit-strict-grid]').scrollTop > 0);
+      const scroll = await list.evaluate(el => el.scrollTop);
+      assert.ok(scroll > 0);
+      assert.deepEqual(await bounds(), start);
+
+      await seen.focus();
+      await seen.press('Enter');
+      assert.equal(await list.getAttribute('aria-labelledby'), await seen.getAttribute('id'));
+      assert.equal(await seen.evaluate(el => el === document.activeElement), true);
+      assert.equal(await older.getAttribute('aria-expanded'), 'false');
+      assert.equal(await list.evaluate(el => el.scrollTop), 0);
+      await list.evaluate(el => { el.scrollTop = 260; });
+      await older.click();
+      assert.equal(await list.evaluate(el => el.scrollTop), scroll);
+      await page.setViewportSize({ width: sidebar ? 620 : 920, height: 480 });
+      await list.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+      const smaller = await bounds();
+      assert.ok(Math.abs(smaller.height - smaller.bottom) <= 1, JSON.stringify(smaller));
+
+      const sentinel = list.locator('ytd-continuation-item-renderer');
+      await sentinel.evaluate((el, extra) => {
+        const observer = new IntersectionObserver(([entry]) => {
+          if (entry.isIntersecting) {
+            observer.disconnect();
+            el.insertAdjacentHTML('beforebegin', extra);
+          }
+        });
+        observer.observe(el);
+      }, card(ids.older));
+      await list.evaluate(el => { el.scrollTop = el.scrollHeight; });
+      await list.locator('[data-id="' + ids.older + '"][data-stopit-group="older"]').waitFor();
+      await seen.click();
+      assert.equal(await list.evaluate(el => el.scrollTop), 260);
+      await seen.click();
+      assert.deepEqual(await scope.locator('[data-stopit-heading] [aria-expanded="true"]').allTextContents(), [labels.sectionOlder]);
+      assert.ok(await list.locator('[data-stopit-group="older"]:visible').count() > 0);
+    }
+  } finally {
+    await page.close();
+    await resetStrict(worker);
+  }
+});
+
+test('la rueda sobre una miniatura o su preview flotante mueve solo la sección abierta', async () => {
+  const worker = await strictWorker();
+  const page = await context.newPage();
+  const rows = Array.from({ length: 30 }, (_, i) =>
+    card(String(i).padStart(11, '0'), '09:00', '<time datetime="2025-01-03T12:00:00Z"></time>')
+      .replace('<yt-thumbnail-badge-view-model>', '<img alt="Miniatura"><yt-thumbnail-badge-view-model>')
+  ).join('');
+  const html = '<!doctype html>' + signedInPage('<style>*{box-sizing:border-box}body{margin:0}header{height:56px}' +
+    'main{height:calc(100dvh - 80px);overflow:auto}footer{height:600px}ytd-browse,ytd-rich-grid-renderer{display:block}' +
+    'ytd-rich-item-renderer{width:50%;display:block;height:145px}img{display:block;width:130px;height:84px}' +
+    'ytd-video-preview{display:block;position:fixed;z-index:9;width:130px;height:84px;background:#888}' +
+    '</style><header></header><main><ytd-browse page-subtype="subscriptions"><ytd-rich-grid-renderer>' +
+    '<div id="contents">' + rows + '<ytd-continuation-item-renderer></ytd-continuation-item-renderer></div>' +
+    '</ytd-rich-grid-renderer></ytd-browse><footer></footer></main><footer></footer>');
+  await page.route('**/feed/subscriptions*', route => route.fulfill({ contentType: 'text/html', body: html }));
+  try {
+    await worker.evaluate(since => chrome.storage.local.set({ strictSince: since }), sinceJan2);
+    for (const sidebar of [false, true]) {
+      if (sidebar) {
+        await page.goto(youtube + '/watch?v=' + ids.replay, { waitUntil: 'commit' });
+        await page.locator('iframe[data-stopit-state="ready"]').waitFor();
+      } else await page.goto(subscriptions);
+      const frame = sidebar ? page.frames().find(f => f.url().includes('stopit-panel=1')) : page.mainFrame();
+      const list = frame.locator('[data-stopit-open="new"]');
+      await list.waitFor();
+      const thumb = list.locator('img').first();
+      const positions = () => frame.evaluate(() => ({
+        outer: [window.scrollY, document.querySelector('main').scrollTop],
+        heads: [...document.querySelectorAll('[data-stopit-heading]')].map(el => el.getBoundingClientRect().top)
+      }));
+      const initial = await positions();
+      // Hit the grid's padding, outside every card, to exercise native scrolling.
+      await list.evaluate(el => el.style.setProperty('padding-left', '10px', 'important'));
+      await list.hover({ position: { x: 3, y: 20 } });
+      assert.equal(await list.evaluate(el => {
+        const rect = el.getBoundingClientRect();
+        return document.elementFromPoint(rect.left + 3, rect.top + 20) === el;
+      }), true);
+      await page.mouse.wheel(0, 80);
+      await frame.waitForFunction(() => document.querySelector('#contents').scrollTop > 0, null, { timeout: 2500 });
+      assert.deepEqual(await positions(), initial);
+      await list.evaluate(el => { el.scrollTop = 0; });
+      const fresh = frame.getByRole('button', { name: labels.sectionNew });
+      const indicator = () => fresh.evaluate(el => getComputedStyle(el, '::after').animationName);
+      const continuation = list.locator('ytd-continuation-item-renderer');
+      assert.equal(await indicator(), 'none');
+      await continuation.evaluate(el => el.insertAdjacentHTML('beforeend', '<tp-yt-paper-spinner active></tp-yt-paper-spinner>'));
+      assert.equal(await indicator(), 'stopit-section-spin');
+      await page.emulateMedia({ reducedMotion: 'reduce' });
+      assert.equal(await indicator(), 'none');
+      await continuation.evaluate(el => el.replaceChildren());
+      await page.emulateMedia({ reducedMotion: 'no-preference' });
+      assert.equal(await indicator(), 'none');
+      assert.match(await fresh.evaluate(el => getComputedStyle(el.parentElement, '::before').backgroundImage), /linear-gradient/);
+
+      // A gesture over the image must not reach the preview's own wheel handler.
+      await thumb.evaluate(el => el.addEventListener('wheel', event => {
+        event.preventDefault();
+        document.querySelector('main').scrollBy(0, event.deltaY);
+      }, { passive: false }));
+      await thumb.hover();
+      await page.mouse.wheel(0, 80);
+      await frame.waitForFunction(() => document.querySelector('#contents').scrollTop > 0, null, { timeout: 2500 });
+      assert.deepEqual(await positions(), initial);
+      await list.evaluate(el => { el.scrollTop = 0; });
+      // YouTube can put the hover player in a portal instead of inside the thumbnail.
+      await thumb.evaluate(el => {
+        const rect = el.getBoundingClientRect();
+        const preview = document.createElement('ytd-video-preview');
+        preview.style.setProperty('display', 'block', 'important');
+        preview.style.left = rect.left + 'px';
+        preview.style.top = rect.top + 'px';
+        preview.innerHTML = '<video></video>';
+        document.body.append(preview);
+      });
+      const preview = frame.locator('ytd-video-preview');
+      await preview.hover();
+      await page.mouse.wheel(0, 140);
+      await frame.waitForFunction(() => document.querySelector('#contents').scrollTop > 0, null, { timeout: 2500 });
+      assert.deepEqual(await positions(), initial);
+      await list.evaluate(el => { el.scrollTop = el.scrollHeight; });
+      await page.mouse.wheel(0, 420);
+      await frame.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+      assert.deepEqual(await positions(), initial);
+      await preview.evaluate(el => el.remove());
+      const last = frame.locator('[data-stopit-heading="seen"]');
+      const fits = await last.evaluate(el => {
+        const main = document.querySelector('main');
+        return el.getBoundingClientRect().bottom <= Math.min(innerHeight, main.getBoundingClientRect().bottom) + 1;
+      });
+      assert.ok(fits, 'Vistos debe quedar dentro del área visible');
+
+      if (!sidebar) {
+        // Open menus own their scroll even if drawn over the grid.
+        await list.evaluate(el => {
+          const menu = document.createElement('div');
+          menu.setAttribute('role', 'menu');
+          menu.style.cssText = 'position:fixed;top:45%;left:25%;height:60px;width:140px;z-index:10;overflow:auto';
+          menu.innerHTML = '<div style="height:800px"></div>';
+          document.body.append(menu);
+        });
+        const menu = frame.getByRole('menu');
+        await menu.hover();
+        await page.mouse.wheel(0, 80);
+        await frame.waitForFunction(() => document.querySelector('[role="menu"]').scrollTop > 0);
+        assert.deepEqual(await positions(), initial);
+        await worker.evaluate(() => chrome.storage.local.set({ strictSince: 0 }));
+        await list.waitFor({ state: 'detached' });
+        assert.equal(await frame.locator('[data-stopit-scroll-lock]').count(), 0);
+        assert.equal(await frame.locator('main').evaluate(el => getComputedStyle(el).overflowY), 'auto');
+        await worker.evaluate(since => chrome.storage.local.set({ strictSince: since }), sinceJan2);
+      } else {
+        assert.equal(await page.locator('[data-stopit-scroll-lock]').count(), 0);
+      }
+    }
+  } finally {
+    await page.close();
+    await resetStrict(worker);
   }
 });

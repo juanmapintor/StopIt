@@ -7,6 +7,14 @@
   display: none !important;
 }
 
+.stopit-watch-slot {
+  width: 100%;
+  min-width: 0;
+}
+/* Reserve the list's space so pinning or resizing it never moves the comments. */
+.stopit-watch-slot:has(iframe:is([data-stopit-state='loading'], [data-stopit-state='ready'])) {
+  min-height: max(0px, calc(100dvh - var(--stopit-bar-bottom, 0px)));
+}
 .stopit-watch-panel {
   --stopit-muted: var(--yt-spec-text-secondary, #606060);
   color: var(--stopit-muted);
@@ -17,6 +25,12 @@
   position: relative;
   min-width: 0;
   width: 100%;
+}
+.stopit-watch-panel[data-stopit-pinned] {
+  position: fixed;
+  top: var(--stopit-pin-top);
+  left: var(--stopit-panel-left);
+  width: var(--stopit-panel-width);
 }
 html[dark] .stopit-watch-panel {
   --stopit-muted: var(--yt-spec-text-secondary, #aaa);
@@ -39,13 +53,10 @@ html[dark] .stopit-watch-panel {
 .stopit-watch-panel iframe {
   display: block;
   width: 100%;
-  height: max(240px, calc(100dvh - var(--stopit-panel-top, 0px)));
+  height: max(1px, calc(100dvh - var(--stopit-panel-top, 0px)));
   border: 0;
   background: transparent;
   color-scheme: light dark;
-}
-:is(ytd-watch-flexy, ytd-watch-grid)[theater] .stopit-watch-panel iframe {
-  height: clamp(240px, 74vh, 900px);
 }
 .stopit-watch-panel iframe:not([data-stopit-state='ready']) {
   pointer-events: none;

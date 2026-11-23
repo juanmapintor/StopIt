@@ -1,22 +1,30 @@
 <!doctype html>
-<html lang="es">
+<html lang="en">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Ajustes de StopIt</title>
+    <title data-i18n="settingsTitle"></title>
     <link rel="stylesheet" href="settings.css">
+    <script src="localize-page.js" defer></script>
     <script src="preferences.js" defer></script>
     <script src="settings.js" defer></script>
   </head>
   <body>
     <main>
-      <h1>Ajustes de StopIt</h1>
+      <h1 data-i18n="settingsTitle"></h1>
       <label for="notifications">
         <span>
-          <strong id="name">Mostrar notificaciones</strong>
-          <span id="description">Campana y panel de la barra superior de YouTube.</span>
+          <strong id="name" data-i18n="showNotifications"></strong>
+          <span class="description" id="description" data-i18n="notificationsDescription"></span>
         </span>
-        <input type="checkbox" role="switch" id="notifications" aria-labelledby="name" aria-describedby="description" disabled>
+        <input type="checkbox" role="switch" id="notifications" data-preference="showNotifications" aria-labelledby="name" aria-describedby="description" disabled>
+      </label>
+      <label for="strict-mode">
+        <span>
+          <strong id="strict-name" data-i18n="strictMode"></strong>
+          <span class="description" id="strict-description" data-i18n="strictDescription"></span>
+        </span>
+        <input type="checkbox" role="switch" id="strict-mode" data-preference="strictSince" aria-labelledby="strict-name" aria-describedby="strict-description" disabled>
       </label>
       <p id="error" role="status"></p>
     </main>
