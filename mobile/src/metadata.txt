@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         StopIt for YouTube
 // @namespace    https://github.com/juanmapintor/StopIt
-// @version      2.0.0
+// @version      2.0.1
 // @description  Open Subscriptions on Home, hide Shorts, and return to your feed from the player.
 // @description:es Abrí Suscripciones desde Inicio, ocultá Shorts y volvé a tu feed desde el reproductor.
 // @license      MIT-0

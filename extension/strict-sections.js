@@ -53,6 +53,15 @@ class StopItSections {
     }
     this.host.setAttribute('data-stopit-section-host', '');
     this.resize.observe(this.host);
+    // YouTube may replace the grid's siblings while keeping the list and its scroll position.
+    this.headingsObserver = new MutationObserver(() => {
+      if (this.active && grid.parentElement === this.host &&
+          [...this.buttons.values()].some(button => button.parentElement.parentElement !== this.host)) {
+        this.placeHeadings();
+        this.scheduleMeasure();
+      }
+    });
+    this.headingsObserver.observe(this.host, { childList: true });
     this.onWheel = this.routeWheel.bind(this);
     window.addEventListener('wheel', this.onWheel, { capture: true, passive: false });
     window.addEventListener('resize', this.scheduleMeasure);
@@ -71,17 +80,7 @@ class StopItSections {
     this.active = group;
     grid.dataset.stopitOpen = group;
     const focused = document.activeElement;
-    const before = [];
-    const after = [];
-    let aboveList = true;
-    for (const [key, button] of this.buttons) {
-      const expanded = key === group;
-      button.setAttribute('aria-expanded', String(expanded));
-      (aboveList ? before : after).push(button.parentElement);
-      if (expanded) aboveList = false;
-    }
-    grid.before(...before);
-    grid.after(...after);
+    this.placeHeadings();
     grid.setAttribute('aria-labelledby', this.buttons.get(group).id);
     this.measure();
     grid.scrollTop = this.offsets.get(group) || 0;
@@ -92,6 +91,20 @@ class StopItSections {
     if (focused?.closest('[data-stopit-heading]') && document.activeElement !== focused) {
       focused.focus({ preventScroll: true });
     }
+  }
+
+  placeHeadings() {
+    const before = [];
+    const after = [];
+    let aboveList = true;
+    for (const [key, button] of this.buttons) {
+      const expanded = key === this.active;
+      button.setAttribute('aria-expanded', String(expanded));
+      (aboveList ? before : after).push(button.parentElement);
+      if (expanded) aboveList = false;
+    }
+    this.grid.before(...before);
+    this.grid.after(...after);
   }
 
   routeWheel(event) {
@@ -137,6 +150,7 @@ class StopItSections {
   }
 
   destroy() {
+    this.headingsObserver.disconnect();
     cancelAnimationFrame(this.frame);
     this.resize.disconnect();
     window.removeEventListener('resize', this.scheduleMeasure);

@@ -28,9 +28,9 @@ Desarrollé StopIt con ayuda de inteligencia artificial, principalmente para mi 
 
 Abrí [Inicio de YouTube](https://m.youtube.com/) en el navegador configurado. Vas a llegar al feed de la cuenta que uses ahí. Al abrir un video, podés recorrer tus suscripciones debajo del reproductor o tocar **Volver a mis suscripciones**. El panel marca el video actual como **Reproduciendo**. Si falla la carga, ofrece reintentar o abrir el feed.
 
-Tocá **StopIt** en la cabecera de YouTube para abrir **Ajustes de StopIt**. Si YouTube cambia u oculta la cabecera, buscá el botón en la esquina inferior derecha. Activá **Modo estricto** para agrupar el feed y el panel en **Nuevos**, **Anteriores** y **Vistos**. **Mostrar notificaciones** controla la campana y **Mostrar botón Crear** controla el acceso de creación en la barra superior. Los tres ajustes empiezan desactivados. El gestor guarda las preferencias en el dispositivo y distingue el historial por cuenta de YouTube.
+Tocá el ícono rojo de **StopIt** en la cabecera de YouTube para abrir **Ajustes de StopIt**. Si YouTube cambia u oculta la cabecera, buscá el botón en la esquina inferior derecha. Activá **Modo estricto** para agrupar el feed y el panel en **Nuevos**, **Anteriores** y **Vistos**. **Mostrar notificaciones** controla la campana y **Mostrar botón Crear** controla el acceso de creación en la barra superior. Los tres ajustes empiezan desactivados. El gestor guarda las preferencias en el dispositivo y distingue el historial por cuenta de YouTube.
 
-StopIt oculta las filas de Shorts que aparecen al desplazarte y las invitaciones de YouTube a instalar o abrir la app. En Safari también quita la etiqueta con la que YouTube solicita la barra de la App Store. Si Safari ya mostró esa barra antes de ejecutar Userscripts, podés cerrarla desde el navegador.
+En Suscripciones, StopIt oculta la fila de avatares de canales. También oculta las filas de Shorts que aparecen al desplazarte y las invitaciones de YouTube a instalar o abrir la app. En Safari también quita la etiqueta con la que YouTube solicita la barra de la App Store. Si Safari ya mostró esa barra antes de ejecutar Userscripts, podés cerrarla desde el navegador.
 
 Los enlaces a Shorts llevan a Suscripciones. Para enlaces ambiguos, StopIt verifica los metadatos y ofrece reintentar si la verificación falla. Si un enlace abre la app oficial, elegí abrirlo en el navegador configurado para usar StopIt.
 
@@ -59,13 +59,13 @@ StopIt usa el idioma de la interfaz de Chrome. Si usás español, incluida cualq
 
 1. En Safari, abrí **Userscripts** desde el menú de extensiones y tocá el ícono de la nube para ver las actualizaciones. Si la lista está vacía, tocá **Check Updates**.
 2. Si aparece **StopIt for YouTube**, tocá **Update**. Si preferís actualizarlo a mano, abrí el archivo en Safari, volvé a abrir **Userscripts** en esa pestaña y confirmá la instalación sobre la copia existente. [Última versión del script](https://raw.githubusercontent.com/juanmapintor/StopIt/main/mobile/stopit.user.js)
-3. Recargá las pestañas de YouTube. En la versión 2 podés tocar **StopIt** dentro de YouTube para abrir los ajustes.
+3. Recargá las pestañas de YouTube. En la versión 2 podés tocar el ícono de **StopIt** dentro de YouTube para abrir los ajustes.
 
 ### Android con Firefox y Violentmonkey
 
 1. En Firefox, abrí **Violentmonkey** desde el menú de extensiones y entrá a su panel. Buscá **StopIt for YouTube** y tocá la flecha circular de su fila para buscar actualizaciones.
 2. Si el gestor pide confirmación, aceptá la actualización. Al pasar de la versión 1 a la 2, StopIt solicita acceso al almacenamiento del gestor para guardar los ajustes y el historial del modo estricto. También podés abrir el archivo en Firefox y confirmar la reinstalación sobre el mismo script. [Última versión del script](https://raw.githubusercontent.com/juanmapintor/StopIt/main/mobile/stopit.user.js)
-3. Recargá las pestañas de YouTube y tocá **StopIt** para abrir los ajustes.
+3. Recargá las pestañas de YouTube y tocá el ícono de **StopIt** para abrir los ajustes.
 
 ### Chrome de escritorio
 
@@ -85,7 +85,7 @@ El filtrado del feed utiliza los elementos de la interfaz de escritorio de YouTu
 
 ## Ajustes
 
-En el teléfono, tocá **StopIt** dentro de YouTube. En Chrome de escritorio, hacé clic en el ícono de StopIt en el menú de extensiones. Activá **Mostrar notificaciones** para ver la campana y abrir su panel en la barra superior de YouTube. Activá **Mostrar botón Crear** para recuperar el botón **Crear** en esa barra. La campana y el botón Crear están ocultos por defecto. Cada ajuste se guarda por separado y se aplica a las pestañas abiertas.
+En el teléfono, tocá el ícono de **StopIt** dentro de YouTube. En Chrome de escritorio, hacé clic en el ícono de StopIt en el menú de extensiones. Activá **Mostrar notificaciones** para ver la campana y abrir su panel en la barra superior de YouTube. Activá **Mostrar botón Crear** para recuperar el botón **Crear** en esa barra. La campana y el botón Crear están ocultos por defecto. Cada ajuste se guarda por separado y se aplica a las pestañas abiertas.
 
 ### Modo estricto
 

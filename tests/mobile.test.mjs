@@ -216,6 +216,82 @@ for (const engine of [webkit, firefox]) {
       assert.ok(await page.getByText('Premium').isVisible());
     });
 
+    test('muestra las secciones en la grilla móvil sin reservar espacio para canales ni filtros vacíos', async () => {
+      function card(id, age, watched = false) {
+        return `<ytm-rich-item-renderer><ytm-compact-video-renderer>
+          <a aria-hidden="true" href="/watch?v=${id}"><img alt=""></a>
+          <a href="/watch?v=${id}"><h4 class="YtmCompactMediaItemHeadline">${id}</h4>
+            <div class="YtmCompactMediaItemStats">${age}</div></a>
+          ${watched ? '<div class="ytwThumbnailOverlayResumePlaybackRendererThumbnailOverlayResumePlaybackProgress" style="width:40%"></div>' : ''}
+        </ytm-compact-video-renderer></ytm-rich-item-renderer>`;
+      }
+      const recent = 'NewVideo123', watched = 'Watched1234';
+      const strip = '<ytm-channel-list-sub-menu-renderer><a href="/feed/channels">Canales</a></ytm-channel-list-sub-menu-renderer>';
+      const bar = '<div class="rich-grid-sticky-header"><ytm-feed-filter-chip-bar-renderer></ytm-feed-filter-chip-bar-renderer></div>';
+      const list = '<div class="rich-grid-renderer-contents">' + strip + card(recent, 'hace 1 hora') +
+        card(video, 'hace 3 días') + card(watched, 'hace 4 días', true) + '</div>';
+      await page.route(subscriptions, route => route.fulfill({ contentType: 'text/html', body: `
+        <meta name="viewport" content="width=device-width,initial-scale=1">
+        <style>body{margin:0}ytm-app,ytm-tab-renderer,ytm-rich-grid-renderer,ytm-rich-item-renderer,
+          ytm-channel-list-sub-menu-renderer{display:block}.mobile-topbar-header{height:48px}
+          .rich-grid-sticky-header{margin-bottom:50px}ytm-pivot-bar-renderer{position:fixed;bottom:0;height:56px}
+          h2{max-height:2.5em;overflow:hidden}</style>
+        <script type="application/json">ytcfg.set({"LOGGED_IN":true,"DATASYNC_ID":"mobile-A"})</script>
+        <ytm-app><header class="mobile-topbar-header"><div class="mobile-topbar-header-content"></div></header>
+        <ytm-browse><div class="tab-content" tab-identifier="FEsubscriptions"><ytm-tab-renderer>
+        <ytm-rich-grid-renderer></ytm-rich-grid-renderer></ytm-tab-renderer></div></ytm-browse>
+        <ytm-pivot-bar-renderer>Suscripciones</ytm-pivot-bar-renderer></ytm-app>` }));
+      await page.goto(subscriptions);
+      const grid = page.locator('ytm-rich-grid-renderer');
+      await grid.waitFor({ state: 'attached' });
+      await grid.evaluate((el, html) => el.innerHTML = html, bar + list);
+      const channels = grid.locator('ytm-channel-list-sub-menu-renderer');
+      await channels.waitFor({ state: 'hidden' });
+      const header = page.locator('.mobile-topbar-header');
+      assert.equal((await grid.locator('ytm-rich-item-renderer').first().boundingBox()).y, (await header.boundingBox()).height);
+      const filters = grid.locator('ytm-feed-filter-chip-bar-renderer');
+      await filters.evaluate(el => el.innerHTML = '<button>Todos</button>');
+      await page.getByRole('button', { name: 'Todos' }).waitFor();
+      await filters.evaluate(el => el.classList.add('filter-chip-bar-out'));
+      assert.equal(await grid.locator('.rich-grid-sticky-header').evaluate(el => getComputedStyle(el).marginBottom), '0px');
+      await filters.evaluate(el => el.replaceChildren());
+
+      const settings = page.getByRole('button', { name: 'Ajustes de StopIt' });
+      assert.equal(await settings.textContent(), '');
+      await settings.locator('img').evaluate(img => img.decode());
+      assert.ok((await settings.boundingBox()).width >= 44);
+      await settings.click();
+      const strict = page.getByRole('switch', { name: 'Modo estricto' });
+      assert.equal(await strict.isChecked(), false);
+      await strict.check();
+      await page.getByRole('button', { name: 'Cerrar' }).click();
+      // Reopen the feed with a saved cutoff between the first and second uploads.
+      values.set('strictSince', Date.now() - 2 * 86400_000);
+      await page.reload();
+      await grid.evaluate((el, html) => el.innerHTML = html, bar + list);
+      const listElement = grid.locator('.rich-grid-renderer-contents');
+      await page.locator('.rich-grid-renderer-contents[data-stopit-open="new"]').waitFor();
+      for (const [name, id] of [['Nuevos', recent], ['Anteriores', video], ['Vistos', watched]]) {
+        const section = page.getByRole('button', { name, exact: true });
+        const rect = await section.boundingBox();
+        assert.ok(rect.y >= 48 && rect.y + rect.height <= (await page.locator('ytm-pivot-bar-renderer').boundingBox()).y);
+        if (await section.getAttribute('aria-expanded') === 'false') await section.click();
+        assert.deepEqual(await listElement.locator('h4:visible').allTextContents(), [id]);
+      }
+      await grid.evaluate(el => el.querySelectorAll('[data-stopit-heading]').forEach(h => h.remove()));
+      await page.getByRole('button', { name: 'Vistos', exact: true }).waitFor();
+      assert.equal(await listElement.getAttribute('data-stopit-open'), 'seen');
+      await grid.evaluate((el, html) => el.querySelector('.rich-grid-renderer-contents').outerHTML = html, list);
+      await grid.locator('.rich-grid-renderer-contents[data-stopit-strict-grid]').waitFor();
+      assert.equal(await grid.locator('[data-stopit-heading]').count(), 3);
+      assert.equal(await channels.isVisible(), false);
+      await page.evaluate(() => {
+        history.pushState({}, '', '/feed/channels');
+        document.dispatchEvent(new Event('yt-navigate-finish'));
+      });
+      await channels.waitFor();
+    });
+
     test('Nuevos, Anteriores y Vistos comparten el corte del feed y el historial por cuenta con el panel', async () => {
       await page.goto(origin + '/results');
       await page.getByRole('button', {name:'Ajustes de StopIt'}).click();

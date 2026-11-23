@@ -1,7 +1,9 @@
 // Publication information already rendered by YouTube. Relative labels identify
 // an interval (e.g. “hace 2 h” can be between two and three hours old).
 const StopItFeedDates = (() => {
-  const metadata = '#metadata-line, .media-item-byline, .media-item-byline span, .compact-media-item-byline, .compact-media-item-byline span, .ytm-badge-and-byline-item-byline, .ytContentMetadataViewModelMetadataText, .yt-content-metadata-view-model__metadata-text';
+  const metadata = '#metadata-line, .media-item-byline, .media-item-byline span, .compact-media-item-byline, .compact-media-item-byline span, ' +
+    '.ytm-badge-and-byline-item-byline, .ytmBadgeAndBylineRendererItemByline, .YtmCompactMediaItemStats, ' +
+    '.ytContentMetadataViewModelMetadataText, .yt-content-metadata-view-model__metadata-text';
   const metadataRow = '.ytContentMetadataViewModelMetadataRow, .yt-content-metadata-view-model__metadata-row';
   const units = [
     ['seconds?|secs?|s|segundos?|segs?', 1000],
@@ -27,12 +29,11 @@ const StopItFeedDates = (() => {
     return { earliest, latest };
   }
 
-  function read(card, live, previous) {
+  function read(card, live, previous, title) {
     const exact = absolute(card.querySelector(live
       ? '[itemprop="startDate"], time[datetime]:not([itemprop])'
       : '[itemprop="datePublished"], [itemprop="uploadDate"], time[datetime]:not([itemprop])'));
     if (exact) return exact;
-    const title = card.querySelector('h3 a, #video-title, #video-title-link, .media-item-headline, .compact-media-item-headline, .ytLockupMetadataViewModelTitle, .yt-lockup-metadata-view-model__title');
     // Remove the user-supplied title from the accessible description before
     // looking for an age. A title can itself contain “hace 10 minutos”.
     const label = (title?.getAttribute('aria-label') || '').replace(title?.textContent.trim() || '', '');

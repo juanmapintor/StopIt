@@ -3,6 +3,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 const read = path => readFile(new URL(path, import.meta.url), 'utf8');
 const lib = name => read('../extension/' + name);
 const source = name => read('src/' + name);
+const icon = await readFile(new URL('../extension/icons/128.png', import.meta.url));
 const catalogs = {};
 for (const lang of ['en', 'es']) {
   const catalog = JSON.parse(await lib('_locales/' + lang + '/messages.json'));
@@ -46,6 +47,7 @@ mountStyle();`,
     'strict-sections.js', 'strict-mode.js'].map(lib)),
   'if (embeddedPanel) {', await lib('panel-feed.js'), '} else {',
   await source('navigation.js'), await lib('youtube-controls.js'), await lib('settings.js'),
+  `const stopItIcon = 'data:image/png;base64,${icon.toString('base64')}';`,
   await source('settings.js'), await lib('watch-panel.js'), '}',
   await lib('feed.js'), '}\nstart(window, false);\n})();\n'
 ].join('\n');

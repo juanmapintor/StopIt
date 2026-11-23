@@ -28,9 +28,9 @@ Already using StopIt? [How to update StopIt](#update-stopit)
 
 Open [YouTube Home](https://m.youtube.com/) in the configured browser to see the feed for your signed-in account. On a video page, browse your subscriptions below the player or select **Back to my subscriptions**. The panel marks the current video as **Now playing**. If the feed fails to load, you can retry or open Subscriptions.
 
-Tap **StopIt** in the YouTube header to open **StopIt settings**. When the header is unavailable, look in the lower-right corner. Turn on **Strict mode** to group the feed and player panel into **New**, **Older**, and **Watched**. **Show notifications** controls the bell and **Show Create button** controls the creation shortcut in the top bar. All three settings start off. The manager stores preferences on your device and keeps history separately for each YouTube account.
+Tap the red **StopIt** icon in the YouTube header to open **StopIt settings**. When the header is unavailable, look in the lower-right corner. Turn on **Strict mode** to group the feed and player panel into **New**, **Older**, and **Watched**. **Show notifications** controls the bell and **Show Create button** controls the creation shortcut in the top bar. All three settings start off. The manager stores preferences on your device and keeps history separately for each YouTube account.
 
-StopIt hides Shorts shelves as you scroll and YouTube’s prompts to install or open the app. In Safari it also removes the metadata YouTube uses to request the App Store banner. If Safari already displayed its own banner before Userscripts ran, you can dismiss it in the browser.
+On Subscriptions, StopIt hides the row of channel avatars. It also hides Shorts shelves as you scroll and YouTube’s prompts to install or open the app. In Safari it also removes the metadata YouTube uses to request the App Store banner. If Safari already displayed its own banner before Userscripts ran, you can dismiss it in the browser.
 
 Shorts links open Subscriptions. For ambiguous links, StopIt checks the video metadata and offers a retry if verification fails. If a link opens the YouTube app, open it in the configured browser to use StopIt.
 
@@ -59,13 +59,13 @@ StopIt follows Chrome’s display language. Its settings, section names, and mes
 
 1. In Safari, open **Userscripts** from the extensions menu and tap the cloud icon to view updates. If the list is empty, tap **Check Updates**.
 2. If **StopIt for YouTube** appears, tap **Update**. To update manually, open the script in Safari, open **Userscripts** in that tab, and confirm installation over the existing copy. [Latest userscript](https://raw.githubusercontent.com/juanmapintor/StopIt/main/mobile/stopit.user.js)
-3. Reload your YouTube tabs. In version 2, tap **StopIt** on YouTube to open its settings.
+3. Reload your YouTube tabs. In version 2, tap the **StopIt** icon on YouTube to open its settings.
 
 ### Android with Firefox and Violentmonkey
 
 1. In Firefox, open **Violentmonkey** from the extensions menu and go to its dashboard. Find **StopIt for YouTube** and tap the circular arrow on its row to check for updates.
 2. Confirm the update if prompted. When upgrading from version 1 to version 2, StopIt requests access to the manager’s storage for settings and strict-mode history. You can also open the script in Firefox and confirm reinstallation over the existing copy. [Latest userscript](https://raw.githubusercontent.com/juanmapintor/StopIt/main/mobile/stopit.user.js)
-3. Reload your YouTube tabs and tap **StopIt** to open its settings.
+3. Reload your YouTube tabs and tap the **StopIt** icon to open its settings.
 
 ### Desktop Chrome
 
@@ -85,7 +85,7 @@ Feed filtering uses YouTube’s desktop interface. Changes to that interface can
 
 ## Settings
 
-On a phone, tap **StopIt** inside YouTube. In desktop Chrome, select StopIt in the extensions menu. Turn on **Show notifications** to show the notification bell and open its panel in YouTube’s top bar. Turn on **Show Create button** to restore **Create** in the same bar. The bell and Create button are hidden by default. Each setting is saved independently and applies to open tabs.
+On a phone, tap the **StopIt** icon inside YouTube. In desktop Chrome, select StopIt in the extensions menu. Turn on **Show notifications** to show the notification bell and open its panel in YouTube’s top bar. Turn on **Show Create button** to restore **Create** in the same bar. The bell and Create button are hidden by default. Each setting is saved independently and applies to open tabs.
 
 ### Strict mode
 

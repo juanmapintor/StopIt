@@ -30,7 +30,21 @@
     }
     #stopit-mobile-subscriptions:focus-visible { outline: 2px solid currentColor; }
 
-#stopit-settings-button, #stopit-settings button {
+#stopit-settings-button {
+  display: inline-grid;
+  place-items: center;
+  box-sizing: border-box;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  border-radius: 50%;
+  flex: none;
+}
+#stopit-settings-button img { display: block; }
+#stopit-settings-button:focus-visible { outline: 2px solid currentColor; outline-offset: -2px; }
+#stopit-settings button {
   font: 600 14px/1.3 system-ui, sans-serif;
   color: var(--yt-spec-text-primary, CanvasText);
   background: var(--yt-spec-base-background, Canvas);
@@ -45,6 +59,7 @@
   z-index: 1000;
   inset-inline-end: max(10px, env(safe-area-inset-right));
   bottom: calc(60px + env(safe-area-inset-bottom));
+  background: var(--yt-spec-base-background, Canvas);
 }
 #stopit-settings {
   position: fixed;
@@ -84,6 +99,19 @@ html:not([data-stopit-show-notifications]) :is(
 [data-stopit-strict-grid] { flex-direction: column; flex-wrap: nowrap; }
 [data-stopit-strict-grid] > *, [data-stopit-strict-grid] [data-stopit-group] { flex-shrink: 0; }
 [data-stopit-heading] button { min-height: 44px; }
+[data-stopit-mobile-subscriptions] h2[data-stopit-heading] {
+  max-height: none;
+  overflow: visible;
+  color: inherit;
+}
+/* A fixed filter bar reserves 50–62px in its wrapper, even when it has no filters. */
+[data-stopit-mobile-subscriptions] ytm-channel-list-sub-menu-renderer,
+[data-stopit-mobile-subscriptions] .rich-grid-sticky-header:not(:has(
+  :is(button, a[href], [role='tab'], [role='button']):not([hidden], [hidden] *, [data-stopit-shorts-control], [data-stopit-shorts-control] *)
+)) { display: none !important; }
+[data-stopit-mobile-subscriptions] .rich-grid-sticky-header:has(ytm-feed-filter-chip-bar-renderer.filter-chip-bar-out) {
+  margin-bottom: 0 !important;
+}
 ytm-watch .stopit-watch-slot:has(iframe) { min-height: 0; }
 ytm-watch .stopit-watch-panel iframe:is([data-stopit-state='ready'], [data-stopit-state='loading']) {
   height: clamp(200px, 48dvh, 540px);

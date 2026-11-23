@@ -8,6 +8,9 @@
   const shelf =
     'ytd-rich-section-renderer, ytd-rich-shelf-renderer, ytd-shelf-renderer, grid-shelf-view-model, ytd-reel-shelf-renderer, ytm-shelf-renderer, ytm-rich-section-renderer, ytm-reel-shelf-renderer';
   const videoLink = 'a:is([href^="/watch?"], [href^="/live/"], [href^="https://www.youtube.com/watch?"], [href^="https://m.youtube.com/watch?"])';
+  const titleSelector = 'h3 a, #video-title, #video-title-link, .media-item-headline, .compact-media-item-headline, ' +
+    '.ytLockupMetadataViewModelTitle, .yt-lockup-metadata-view-model__title, a[href] :is(h3, h4)';
+  const mobileLists = '.rich-grid-renderer-contents, ytm-section-list-renderer > lazy-list';
   const badgeLabels =
     'yt-thumbnail-badge-view-model :is(.ytBadgeShapeText, .yt-badge-shape__text), ytd-thumbnail-overlay-time-status-renderer #text, ytm-thumbnail-overlay-time-status-renderer';
   let active = null;
@@ -57,7 +60,7 @@
     return 'ordinary';
   }
 
-  function liveTile(card, id) {
+  function liveTile(card, id, headline) {
     const tile = document.createElement('div');
     tile.className = 'stopit-live';
     const link = document.createElement('a');
@@ -73,7 +76,7 @@
     badge.textContent = StopItPlatform.message('liveBadge');
     const title = document.createElement('strong');
     title.textContent =
-      card.querySelector('h3 a, #video-title, #video-title-link, .media-item-headline, .compact-media-item-headline, .ytLockupMetadataViewModelTitle, .yt-lockup-metadata-view-model__title')?.textContent.trim() ||
+      headline?.textContent.trim() ||
       card.querySelector(videoLink)?.getAttribute('aria-label') ||
       StopItPlatform.message('watchLive');
     const channel = document.createElement('span');
@@ -111,7 +114,7 @@
     for (const card of cards) {
       const link = card.querySelector(videoLink);
       const id = link && StopItRoutes.videoId(new URL(link.href));
-      const title = card.querySelector('h3 a, #video-title, #video-title-link, .media-item-headline, .compact-media-item-headline, .ytLockupMetadataViewModelTitle, .yt-lockup-metadata-view-model__title');
+      const title = card.querySelector(titleSelector);
       if (!StopItRoutes.validId(id) || !(title?.textContent.trim() || link.getAttribute('aria-label') || (!link.firstElementChild && link.textContent.trim()))) {
         // YouTube is still filling this slot, or has just recycled it.
         card.removeAttribute('data-stopit-group');
@@ -122,7 +125,7 @@
       const inShelf = liveShelfCards.has(card);
       const live = type === 'live';
       if (inShelf && (!live || mounted.has(id) || projectedIds.has(id))) continue;
-      const date = StopItFeedDates.read(card, live, state.dates.get(id));
+      const date = StopItFeedDates.read(card, live, state.dates.get(id), title);
       if (date) state.dates.set(id, date);
       inspected.push({ id, card });
       // An undated live broadcast keeps its native position and renderer.
@@ -130,7 +133,7 @@
       const project = live && (inShelf || date);
       if (project) {
         projectedIds.add(id);
-        const tile = state.lives.get(id)?.tile || liveTile(card, id);
+        const tile = state.lives.get(id)?.tile || liveTile(card, id, title);
         const thumbnail = card.querySelector('img');
         const src = thumbnail?.currentSrc || thumbnail?.getAttribute('src') || thumbnail?.dataset.thumb;
         const image = tile.querySelector('img');
@@ -252,21 +255,23 @@
     gridObserver.observe(active.grid, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter });
   }
   const mountObserver = new MutationObserver(() => {
-    if (!active?.grid.isConnected) enter();
+    if (!active?.grid.isConnected || (active.waitingForList && active.grid.querySelector(mobileLists))) enter();
   });
   function findGrid() {
     if (location.pathname.replace(/\/$/, '') !== feedRoute) return;
     const page = document.querySelector(pageSelector);
-    const mobile = document.querySelector('ytm-browse [tab-identifier="FEsubscriptions"]:not([hidden])') ||
-      document.querySelector('ytm-browse:not([hidden]), main');
+    const mobile = !page && (document.querySelector('.tab-content[tab-identifier="FEsubscriptions"]:not([hidden], [hidden] *)') ||
+      document.querySelector('ytm-browse:not([hidden], [hidden] *), main:not([hidden], [hidden] *)'));
     const grid = page?.querySelector('ytd-rich-grid-renderer > #contents') || page?.querySelector(grids) ||
-      mobile?.querySelector('.rich-grid-renderer-contents, ytm-section-list-renderer > lazy-list, ytm-rich-grid-renderer') ||
-      (mobile?.querySelector(cardTypes) && mobile);
+      (mobile && (mobile.querySelector(mobileLists) || mobile.querySelector('ytm-rich-grid-renderer') ||
+        (mobile.querySelector(cardTypes) && mobile)));
     if (!grid) return;
     if (active?.grid === grid) return;
     reset();
     grid.setAttribute('data-stopit-feed', '');
-    active = { grid, known: new Set(), order: [], dates: new Map(), lives: new Map() };
+    if (mobile) mobile.setAttribute('data-stopit-mobile-subscriptions', '');
+    active = { grid, mobile, waitingForList: mobile && !grid.matches(mobileLists),
+      known: new Set(), order: [], dates: new Map(), lives: new Map() };
     observeGrid();
     schedule();
   }
@@ -276,6 +281,7 @@
     clearTimeout(timer);
     timer = null;
     if (active) {
+      if (active.mobile) active.mobile.removeAttribute('data-stopit-mobile-subscriptions');
       active.grid.removeAttribute('data-stopit-feed');
       StopItStrictMode.clear(active.grid);
       for (const live of active.lives.values()) live.tile.remove();

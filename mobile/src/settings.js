@@ -3,7 +3,12 @@
   const launcher = document.createElement('button');
   launcher.type = 'button';
   launcher.id = 'stopit-settings-button';
-  launcher.textContent = 'StopIt';
+  const icon = document.createElement('img');
+  icon.alt = '';
+  icon.width = icon.height = 24;
+  icon.src = stopItIcon;
+  launcher.append(icon);
+  launcher.title = t('settingsTitle');
   launcher.lang = t('languageCode');
   launcher.setAttribute('aria-label', t('settingsTitle'));
   launcher.setAttribute('aria-haspopup', 'dialog');
