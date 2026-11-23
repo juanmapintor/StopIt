@@ -1,0 +1,87 @@
+[
+  {
+    "id": 1,
+    "priority": 1,
+    "action": {
+      "type": "redirect",
+      "redirect": {
+        "url": "https://www.youtube.com/feed/subscriptions"
+      }
+    },
+    "condition": {
+      "regexFilter": "^https://(www\\.|m\\.)?youtube\\.com/([?#].*)?$",
+      "resourceTypes": [
+        "main_frame"
+      ]
+    }
+  },
+  {
+    "id": 2,
+    "priority": 1,
+    "action": {
+      "type": "redirect",
+      "redirect": {
+        "url": "https://www.youtube.com/feed/subscriptions"
+      }
+    },
+    "condition": {
+      "regexFilter": "^https://(www\\.|m\\.)?youtube\\.com/(shorts|feed/(subscriptions/)?shorts)([/?#].*)?$",
+      "resourceTypes": [
+        "main_frame"
+      ]
+    }
+  },
+  {
+    "id": 3,
+    "priority": 1,
+    "action": {
+      "type": "redirect",
+      "redirect": {
+        "transform": {
+          "scheme": "chrome-extension",
+          "host": "ogbalbgegahkfjbkkhkaafihenanoedf",
+          "path": "/check.html"
+        }
+      }
+    },
+    "condition": {
+      "regexFilter": "^https://(www\\.|m\\.)?youtube\\.com/watch/?(\\?.*)?$",
+      "resourceTypes": [
+        "main_frame"
+      ]
+    }
+  },
+  {
+    "id": 4,
+    "priority": 1,
+    "action": {
+      "type": "redirect",
+      "redirect": {
+        "regexSubstitution": "chrome-extension://ogbalbgegahkfjbkkhkaafihenanoedf/check.html#source=\\0"
+      }
+    },
+    "condition": {
+      "regexFilter": "^https://[^/]+/(?:embed|v|live)/[^/?#]{11}/?(?:[?#].*)?$",
+      "resourceTypes": [
+        "main_frame"
+      ],
+      "requestDomains": [
+        "youtube.com"
+      ],
+      "isUrlFilterCaseSensitive": true
+    }
+  },
+  {
+    "id": 5,
+    "priority": 2,
+    "action": {
+      "type": "allow"
+    },
+    "condition": {
+      "regexFilter": "^https://(www\\.|m\\.)?youtube\\.com/embed/(videoseries|live_stream)/?([?#].*)?$",
+      "resourceTypes": [
+        "main_frame"
+      ]
+    }
+  }
+]

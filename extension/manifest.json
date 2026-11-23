@@ -1,0 +1,67 @@
+{
+  "manifest_version": 3,
+  "name": "StopIt para YouTube",
+  "description": "Abre tus suscripciones en orden cronológico y bloquea los Shorts.",
+  "version": "1.0.0",
+  "minimum_chrome_version": "120",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA08KDguGXVvb5E/TpGeUDKgO80c0AF4CwL+gWlYiAre9AAxkNoCy1hE5krwztZ9m+FG9sQMwwP/epAb7lDRYX3wqEclYOX8Pe6SWhvMyyhkKk2qt70c3Ssr0txUGh7FIfuWeJch/2dI8wn9M4YwyL8Um/A573O+1o4JRQTYUIFufV5jEOzqci9izuma4AnsHnkGlzdEcdoaKMNJ8rLpWsxomtMIQSshzxbsjYfskShpQGAhA1FO3NJTCLFvEqtH2tG3fN/S/n6H+K3GTNua4HIB/TKvkAKDh05BajQGA4ISh3/GP8v58Ja9Mohm/jkMWgURHmY/aKdffZFtnuVfeXfQIDAQAB",
+  "permissions": [
+    "declarativeNetRequestWithHostAccess",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://www.youtube.com/*",
+    "https://youtube.com/*",
+    "https://m.youtube.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "declarative_net_request": {
+    "rule_resources": [
+      {
+        "id": "navigation",
+        "enabled": true,
+        "path": "rules.json"
+      }
+    ]
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.youtube.com/*",
+        "https://youtube.com/*",
+        "https://m.youtube.com/*"
+      ],
+      "run_at": "document_start",
+      "css": [
+        "youtube.css"
+      ],
+      "js": [
+        "routes.js",
+        "navigation.js",
+        "metadata.js",
+        "feed.js"
+      ]
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "check.html"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ],
+  "content_security_policy": {
+    "extension_pages": "default-src 'none'; script-src 'self'; style-src 'self'; connect-src https://www.youtube.com; frame-ancestors 'none'; object-src 'none'"
+  },
+  "icons": {
+    "16": "icons/16.png",
+    "32": "icons/32.png",
+    "48": "icons/48.png",
+    "128": "icons/128.png"
+  }
+}

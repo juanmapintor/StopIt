@@ -1,0 +1,11 @@
+{
+  "name": "stopit-youtube",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "test": "node --test tests/extension.test.mjs"
+  },
+  "devDependencies": {
+    "playwright-core": "1.65.1"
+  }
+}

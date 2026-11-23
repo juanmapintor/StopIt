@@ -1,0 +1,101 @@
+/* These rules apply while YouTube is building the page, including after SPA navigation. */
+ytd-guide-entry-renderer:has(
+  a:is([href='/shorts'], [href^='/shorts/'], [title='Shorts' i], [aria-label='Shorts' i])
+),
+ytd-mini-guide-entry-renderer:is([aria-label='Shorts' i], [title='Shorts' i]),
+ytd-mini-guide-entry-renderer:has(
+  a:is([href='/shorts'], [href^='/shorts/'], [title='Shorts' i], [aria-label='Shorts' i])
+),
+ytd-guide-entry-renderer:has([title='Shorts' i]),
+ytd-reel-shelf-renderer,
+ytd-browse[page-subtype='home'],
+ytd-rich-section-renderer:has(
+  :is(ytm-shorts-lockup-view-model, ytm-shorts-lockup-view-model-v2, a[href^='/shorts/'])
+),
+ytd-rich-item-renderer:has(
+  :is(ytm-shorts-lockup-view-model, ytm-shorts-lockup-view-model-v2, a[href^='/shorts/'])
+),
+[data-stopit-guide-short],
+[data-stopit-hidden],
+html[data-stopit-leaving] :is(video, #movie_player, ytd-shorts) {
+  display: none !important;
+}
+
+/* Keep the native chronological items, header and continuation trigger. */
+ytd-browse[page-subtype='subscriptions']
+  ytd-rich-grid-renderer
+  > #contents
+  > :not(
+    ytd-rich-item-renderer,
+    ytd-rich-grid-row,
+    ytd-continuation-item-renderer,
+    .stopit-live,
+    :has(a[href^='/feed/channels'])
+  ),
+ytd-browse[page-subtype='subscriptions']
+  ytd-rich-item-renderer:not(
+    :has(a:is([href^='/watch?'], [href^='/live/'], [href^='https://www.youtube.com/watch?']))
+  ),
+ytd-browse[page-subtype='subscriptions']
+  :is(ytd-shelf-renderer, ytd-reel-shelf-renderer, grid-shelf-view-model),
+ytd-browse[page-subtype='subscriptions']
+  :is(ytd-rich-item-renderer, ytd-grid-video-renderer, ytd-video-renderer):has(
+    :is(
+      [overlay-style='UPCOMING'],
+      [overlay-style='SHORTS'],
+      ytd-ad-slot-renderer,
+      ytd-playlist-renderer,
+      ytd-radio-renderer
+    )
+  ) {
+  display: none !important;
+}
+
+.stopit-live {
+  box-sizing: border-box;
+  width: calc(100% / var(--ytd-rich-grid-items-per-row, 3) - var(--ytd-rich-grid-item-margin, 16px));
+  margin: 0 calc(var(--ytd-rich-grid-item-margin, 16px) / 2) var(--ytd-rich-grid-row-margin, 32px);
+  font:
+    1.4rem/1.45 Roboto,
+    Arial,
+    sans-serif;
+}
+.stopit-live a {
+  color: var(--yt-spec-text-primary);
+  text-decoration: none;
+  display: block;
+}
+.stopit-live a:focus-visible {
+  outline: 2px solid var(--yt-spec-call-to-action);
+  outline-offset: 2px;
+}
+.stopit-live .preview {
+  position: relative;
+  display: block;
+}
+.stopit-live img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16/9;
+  object-fit: cover;
+  border-radius: 12px;
+}
+.stopit-live .badge {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #b60000;
+  color: white;
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+.stopit-live strong {
+  display: block;
+  margin-top: 9px;
+  font-size: 1.6rem;
+}
+.stopit-live .channel {
+  color: var(--yt-spec-text-secondary);
+}
